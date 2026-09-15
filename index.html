@@ -6,6 +6,7 @@
 <title>MERAN · Nettoyage & Conciergerie</title>
 <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
 <style>
   :root{
     --bg:#F5F2EA;
@@ -231,12 +232,13 @@ async function startApp(){
   if(NOT_CONFIGURED){ render(); return; }
   try{
     firebase.initializeApp(firebaseConfig);
+    await firebase.auth().signInAnonymously();
     db = firebase.firestore();
     await maybeSeedProperties();
     initFirestoreListeners();
   }catch(e){
     console.error(e);
-    document.getElementById('app').innerHTML = `<div class="setup-wrap"><h1>Erreur de connexion</h1><p>Impossible de se connecter à la base de données. Vérifiez la configuration Firebase collée dans le fichier, et que Firestore est bien activé sur le projet.</p></div>`;
+    document.getElementById('app').innerHTML = `<div class="setup-wrap"><h1>Erreur de connexion</h1><p>Impossible de se connecter à la base de données. Vérifiez la configuration Firebase collée dans le fichier, que Firestore est bien activé sur le projet, et que la connexion anonyme est activée dans Firebase Authentication.</p></div>`;
   }
 }
 
@@ -288,6 +290,7 @@ function logout(){ S.session=null; S.loginError=''; S.modal=null; render(); }
 async function addProvider(name, code){ await db.collection('providers').add({name, code, active:true}); }
 async function removeProvider(id){ await db.collection('providers').doc(id).delete(); }
 async function addProperty(name, location, address){ await db.collection('properties').add({name, location, address:address||''}); }
+async function updateProperty(id, patch){ await db.collection('properties').doc(id).update(patch); }
 async function removeProperty(id){ await db.collection('properties').doc(id).delete(); }
 async function addTask(t){ await db.collection('tasks').add({status:'a_faire', photosBefore:[], photosAfter:[], notes:'', ...t}); }
 async function updateTask(id, patch){ await db.collection('tasks').doc(id).update(patch); }
@@ -404,9 +407,9 @@ function renderAdminProperties(){
   <div class="content">
     <div class="section-title">Propriétés</div>
     ${S.properties.map(p=>`
-      <div class="list-row">
+      <div class="list-row" onclick="openEditProperty('${p.id}')" style="cursor:pointer;">
         <div><div class="list-row-main">${p.name}</div><div class="list-row-sub">${p.address ? p.address+' · ' : ''}${p.location||''}</div></div>
-        <button class="icon-btn" onclick="if(confirm('Supprimer ${p.name.replace(/'/g,"\\'")} ?')) removeProperty('${p.id}')">✕</button>
+        <button class="icon-btn" onclick="event.stopPropagation(); if(confirm('Supprimer ${p.name.replace(/'/g,"\\'")} ?')) removeProperty('${p.id}')">✕</button>
       </div>
     `).join('')}
   </div>
@@ -471,6 +474,7 @@ function renderProvider(){
 function openNewTask(){ S.modal = {type:'newTask'}; render(); }
 function openNewProvider(){ S.modal = {type:'newProvider'}; render(); }
 function openNewProperty(){ S.modal = {type:'newProperty'}; render(); }
+function openEditProperty(id){ S.modal = {type:'editProperty', id}; render(); }
 function openTaskDetail(id){ S.modal = {type:'taskDetail', id}; render(); }
 function closeModal(){ S.modal=null; render(); }
 
@@ -498,6 +502,14 @@ async function submitNewProperty(){
   await addProperty(name, location, address);
   closeModal();
 }
+async function submitEditProperty(id){
+  const name = document.getElementById('editPropName').value.trim();
+  const location = document.getElementById('editPropLoc').value.trim();
+  const address = document.getElementById('editPropAddress').value.trim();
+  if(!name) return;
+  await updateProperty(id, {name, location, address});
+  closeModal();
+}
 async function handlePhotoInput(taskId, kind, inputEl){
   const file = inputEl.files[0];
   if(!file) return;
@@ -513,6 +525,7 @@ function renderModal(){
   if(S.modal.type==='newTask') return modalNewTask();
   if(S.modal.type==='newProvider') return modalNewProvider();
   if(S.modal.type==='newProperty') return modalNewProperty();
+  if(S.modal.type==='editProperty') return modalEditProperty(S.modal.id);
   if(S.modal.type==='taskDetail') return modalTaskDetail(S.modal.id);
   return '';
 }
@@ -557,6 +570,22 @@ function modalNewProperty(){
       <div class="field"><label>Adresse</label><input id="newPropAddress" type="text" placeholder="ex : 63 avenue de la Mer"></div>
       <div class="field"><label>Ville</label><input id="newPropLoc" type="text" placeholder="ex : Cabourg"></div>
       <button class="primary-btn" onclick="submitNewProperty()">Ajouter</button>
+    </div>
+  </div>`;
+}
+function modalEditProperty(id){
+  const p = S.properties.find(x=>x.id===id);
+  if(!p) return '';
+  return `
+  <div class="overlay" onclick="if(event.target===this) closeModal()">
+    <div class="sheet" style="position:relative;">
+      <button class="sheet-close" onclick="closeModal()">✕</button>
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">Modifier la propriété</div>
+      <div class="field"><label>Nom</label><input id="editPropName" type="text" value="${p.name||''}"></div>
+      <div class="field"><label>Adresse</label><input id="editPropAddress" type="text" value="${p.address||''}"></div>
+      <div class="field"><label>Ville</label><input id="editPropLoc" type="text" value="${p.location||''}"></div>
+      <button class="primary-btn" onclick="submitEditProperty('${p.id}')">Enregistrer</button>
     </div>
   </div>`;
 }
