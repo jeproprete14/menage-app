@@ -287,7 +287,7 @@ function logout(){ S.session=null; S.loginError=''; S.modal=null; render(); }
 /* ======================= MUTATIONS (Firestore) ======================= */
 async function addProvider(name, code){ await db.collection('providers').add({name, code, active:true}); }
 async function removeProvider(id){ await db.collection('providers').doc(id).delete(); }
-async function addProperty(name, location){ await db.collection('properties').add({name, location}); }
+async function addProperty(name, location, address){ await db.collection('properties').add({name, location, address:address||''}); }
 async function removeProperty(id){ await db.collection('properties').doc(id).delete(); }
 async function addTask(t){ await db.collection('tasks').add({status:'a_faire', photosBefore:[], photosAfter:[], notes:'', ...t}); }
 async function updateTask(id, patch){ await db.collection('tasks').doc(id).update(patch); }
@@ -297,6 +297,7 @@ async function setAdminPin(pin, whatsapp){ await db.collection('config').doc('ad
 /* ======================= RENDER HELPERS ======================= */
 function propName(id){ const p=S.properties.find(x=>x.id===id); return p?p.name:'—'; }
 function propLoc(id){ const p=S.properties.find(x=>x.id===id); return p?p.location:''; }
+function propAddress(id){ const p=S.properties.find(x=>x.id===id); return p?p.address:''; }
 function provName(id){ const p=S.providers.find(x=>x.id===id); return p?p.name:'—'; }
 
 function header(){
@@ -404,7 +405,7 @@ function renderAdminProperties(){
     <div class="section-title">Propriétés</div>
     ${S.properties.map(p=>`
       <div class="list-row">
-        <div><div class="list-row-main">${p.name}</div><div class="list-row-sub">${p.location||''}</div></div>
+        <div><div class="list-row-main">${p.name}</div><div class="list-row-sub">${p.address ? p.address+' · ' : ''}${p.location||''}</div></div>
         <button class="icon-btn" onclick="if(confirm('Supprimer ${p.name.replace(/'/g,"\\'")} ?')) removeProperty('${p.id}')">✕</button>
       </div>
     `).join('')}
@@ -492,8 +493,9 @@ async function submitNewProvider(){
 async function submitNewProperty(){
   const name = document.getElementById('newPropName').value.trim();
   const location = document.getElementById('newPropLoc').value.trim();
+  const address = document.getElementById('newPropAddress').value.trim();
   if(!name) return;
-  await addProperty(name, location);
+  await addProperty(name, location, address);
   closeModal();
 }
 async function handlePhotoInput(taskId, kind, inputEl){
@@ -552,7 +554,8 @@ function modalNewProperty(){
       <div class="sheet-handle"></div>
       <div class="sheet-title">Nouvelle propriété</div>
       <div class="field"><label>Nom</label><input id="newPropName" type="text" placeholder="ex : Villa des Dunes"></div>
-      <div class="field"><label>Localisation</label><input id="newPropLoc" type="text" placeholder="ex : Cabourg"></div>
+      <div class="field"><label>Adresse</label><input id="newPropAddress" type="text" placeholder="ex : 63 avenue de la Mer"></div>
+      <div class="field"><label>Ville</label><input id="newPropLoc" type="text" placeholder="ex : Cabourg"></div>
       <button class="primary-btn" onclick="submitNewProperty()">Ajouter</button>
     </div>
   </div>`;
@@ -568,6 +571,7 @@ function modalTaskDetail(id){
       <button class="sheet-close" onclick="closeModal()">✕</button>
       <div class="sheet-handle"></div>
       <div class="sheet-title">${propName(t.propertyId)}</div>
+      ${propAddress(t.propertyId) ? `<div class="detail-label">Adresse</div><div class="detail-text">${propAddress(t.propertyId)}${propLoc(t.propertyId)?', '+propLoc(t.propertyId):''}</div>` : ''}
       <div class="detail-label">Date</div><div class="detail-text">${fmtDate(t.date)}</div>
       <div class="detail-label">Prestataire</div><div class="detail-text">${provName(t.providerId)}</div>
       ${t.notes ? `<div class="detail-label">Notes</div><div class="detail-text">${t.notes}</div>` : ''}
