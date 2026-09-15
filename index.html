@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>MERAN · Nettoyage & Conciergerie</title>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --bg:#F5F2EA;
+    --surface:#FFFFFF;
+    --ink:#212B2C;
+    --ink-soft:#5E6C6C;
+    --line:#DFD8C6;
+    --teal:#215B66;
+    --teal-dark:#123A42;
+    --teal-tint:#E4EEEC;
+    --clay:#B06B39;
+    --clay-tint:#F4E6D8;
+    --sage:#4F7A55;
+    --sage-tint:#E5EFE3;
+    --amber:#B7862A;
+    --amber-tint:#F6ECD8;
+    --radius:12px;
+    --shadow:0 1px 2px rgba(33,43,44,0.08);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  #app{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;background:var(--bg);}
+  button{font-family:inherit;cursor:pointer;}
+  input,select,textarea{font-family:inherit;}
+
+  .header{
+    background:var(--teal-dark);color:#F5F2EA;padding:16px 18px;
+    display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20;
+  }
+  .brand{display:flex;flex-direction:column;line-height:1.15;}
+  .brand-name{font-size:19px;font-weight:700;letter-spacing:0.2px;}
+  .brand-sub{font-size:11.5px;color:#B9CFCE;margin-top:1px;}
+  .header-actions{display:flex;align-items:center;gap:10px;}
+  .who{font-size:12.5px;color:#CFE0DE;text-align:right;}
+  .logout{background:transparent;border:1px solid #3E6E75;color:#EAF3F2;border-radius:8px;padding:7px 10px;font-size:12.5px;}
+  .logout:active{background:#1B4B54;}
+
+  .login-wrap{flex:1;display:flex;flex-direction:column;justify-content:center;padding:28px 22px;}
+  .login-title{font-size:24px;font-weight:700;margin:0 0 4px;color:var(--teal-dark);}
+  .login-sub{font-size:13.5px;color:var(--ink-soft);margin:0 0 26px;}
+  .role-switch{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:20px;}
+  .role-btn{flex:1;border:none;background:transparent;padding:10px 0;border-radius:7px;font-size:14px;font-weight:600;color:var(--ink-soft);}
+  .role-btn.active{background:var(--teal);color:#fff;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12.5px;color:var(--ink-soft);margin-bottom:6px;}
+  .field input, .field select{width:100%;padding:12px 13px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-size:15px;color:var(--ink);}
+  .field input:focus, .field select:focus{outline:2px solid var(--teal);outline-offset:0;}
+  .primary-btn{width:100%;padding:13px;border:none;border-radius:10px;background:var(--teal);color:#fff;font-size:15px;font-weight:700;margin-top:6px;}
+  .primary-btn:active{background:var(--teal-dark);}
+  .primary-btn.clay{background:var(--clay);}
+  .primary-btn.clay:active{background:#8F5327;}
+  .error-msg{color:#A3392C;font-size:13px;margin:6px 0 0;}
+  .hint{font-size:12px;color:var(--ink-soft);margin-top:14px;line-height:1.5;}
+
+  .content{flex:1;padding:16px 16px 90px;}
+  .tabbar{position:fixed;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;background:var(--surface);border-top:1px solid var(--line);display:flex;z-index:20;}
+  .tab-btn{flex:1;border:none;background:transparent;padding:11px 0 9px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;color:var(--ink-soft);font-weight:600;}
+  .tab-btn.active{color:var(--teal);}
+  .tab-dot{width:5px;height:5px;border-radius:50%;background:transparent;}
+  .tab-btn.active .tab-dot{background:var(--teal);}
+
+  .section-title{font-size:18px;font-weight:700;margin:4px 0 14px;color:var(--teal-dark);}
+  .empty-state{background:var(--surface);border:1px dashed var(--line);border-radius:var(--radius);padding:26px 18px;text-align:center;color:var(--ink-soft);font-size:13.5px;line-height:1.5;}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 15px;margin-bottom:10px;box-shadow:var(--shadow);}
+  .card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+  .card-title{font-size:15px;font-weight:700;color:var(--ink);}
+  .card-sub{font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
+  .badge{font-size:11px;font-weight:700;padding:4px 9px;border-radius:20px;white-space:nowrap;}
+  .badge.a_faire{background:var(--amber-tint);color:var(--amber);}
+  .badge.fait{background:var(--sage-tint);color:var(--sage);}
+  .card-meta{display:flex;gap:8px;margin-top:9px;font-size:12px;color:var(--ink-soft);flex-wrap:wrap;}
+  .pill{background:var(--teal-tint);color:var(--teal-dark);border-radius:20px;padding:3px 9px;font-weight:600;}
+
+  .fab{position:fixed;right:20px;bottom:78px;max-width:480px;width:52px;height:52px;border-radius:50%;background:var(--teal);color:#fff;border:none;font-size:26px;box-shadow:0 3px 10px rgba(18,58,66,0.35);z-index:19;display:flex;align-items:center;justify-content:center;}
+
+  .overlay{position:fixed;inset:0;background:rgba(18,27,28,0.55);z-index:40;display:flex;align-items:flex-end;justify-content:center;}
+  .sheet{background:var(--bg);width:100%;max-width:480px;max-height:88vh;overflow-y:auto;border-radius:18px 18px 0 0;padding:20px 18px 28px;}
+  .sheet-handle{width:36px;height:4px;background:var(--line);border-radius:3px;margin:0 auto 16px;}
+  .sheet-title{font-size:17px;font-weight:700;margin:0 0 16px;color:var(--teal-dark);}
+  .sheet-close{position:absolute;top:16px;right:16px;background:var(--surface);border:1px solid var(--line);width:30px;height:30px;border-radius:50%;font-size:15px;color:var(--ink-soft);}
+  .row-actions{display:flex;gap:10px;margin-top:18px;}
+  .row-actions .primary-btn{margin-top:0;}
+  .ghost-btn{flex:1;padding:13px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:14px;font-weight:600;}
+  .danger-text{color:#A3392C;background:var(--surface);border:1px solid #E7C9C3;}
+
+  .detail-label{font-size:11.5px;color:var(--ink-soft);font-weight:600;margin:14px 0 6px;}
+  .detail-label:first-child{margin-top:0;}
+  .detail-text{font-size:14.5px;color:var(--ink);line-height:1.5;}
+  .photo-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+  .photo-thumb{width:74px;height:74px;border-radius:9px;object-fit:cover;border:1px solid var(--line);}
+  .photo-add{width:74px;height:74px;border-radius:9px;border:1.5px dashed var(--line);background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--ink-soft);}
+  .status-toggle{display:flex;gap:10px;margin-top:6px;}
+  .status-opt{flex:1;padding:11px 0;text-align:center;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);font-size:13.5px;font-weight:700;color:var(--ink-soft);}
+  .status-opt.selected.a_faire{border-color:var(--amber);background:var(--amber-tint);color:var(--amber);}
+  .status-opt.selected.fait{border-color:var(--sage);background:var(--sage-tint);color:var(--sage);}
+
+  .wa-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--teal-dark);font-size:13.5px;font-weight:600;margin-top:8px;}
+
+  .list-row{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:13px 15px;margin-bottom:9px;display:flex;justify-content:space-between;align-items:center;gap:10px;}
+  .list-row-main{font-size:14.5px;font-weight:700;}
+  .list-row-sub{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+  .icon-btn{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink-soft);font-size:14px;flex-shrink:0;}
+  .storage-note{font-size:11.5px;color:var(--ink-soft);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:16px;line-height:1.5;}
+
+  .setup-wrap{flex:1;padding:28px 22px;}
+  .setup-wrap h1{font-size:20px;color:var(--teal-dark);margin:0 0 6px;}
+  .setup-wrap p{font-size:13.5px;color:var(--ink-soft);line-height:1.6;}
+  .setup-wrap ol{padding-left:20px;font-size:13.5px;color:var(--ink);line-height:1.9;}
+  .setup-wrap code{background:var(--surface);border:1px solid var(--line);padding:1px 6px;border-radius:5px;font-size:12.5px;}
+  .setup-wrap a{color:var(--teal);}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* =====================================================================
+   CONFIGURATION FIREBASE — À COMPLÉTER
+   1. Allez sur https://console.firebase.google.com
+   2. Créez un projet gratuit (pas de carte bancaire nécessaire)
+   3. Dans le projet : "Créer une application Web" (icône </>)
+   4. Copiez l'objet de configuration qui s'affiche et collez-le ci-dessous
+   5. Toujours dans Firebase : allez dans "Firestore Database" → "Créer une
+      base de données" → mode "test" (vous ajusterez les règles ensuite,
+      voir les instructions fournies séparément)
+   ===================================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyAyhtMOIH_bnbVDvYanO890Bxxqm_-8oOA",
+  authDomain: "meran-meange.firebaseapp.com",
+  projectId: "meran-meange",
+  storageBucket: "meran-meange.firebasestorage.app",
+  messagingSenderId: "250990956701",
+  appId: "1:250990956701:web:4a577af964ba4012058474"
+};
+/* ===================================================================== */
+
+let db = null;
+const NOT_CONFIGURED = firebaseConfig.apiKey.includes('COLLEZ_ICI');
+
+/* ======================= STATE ======================= */
+const S = {
+  loaded:false,
+  loadedFlags:{providers:false, properties:false, tasks:false, config:false},
+  session:null,
+  view:'tasks',
+  providers:[],
+  properties:[],
+  tasks:[],
+  adminConfig:{pin:'0000', whatsapp:''},
+  loginRole:'provider',
+  loginError:'',
+  modal:null,
+};
+
+const todayISO = () => new Date().toISOString().slice(0,10);
+const fmtDate = (iso) => {
+  const d = new Date(iso+'T00:00:00');
+  return d.toLocaleDateString('fr-FR',{weekday:'short', day:'numeric', month:'short'});
+};
+
+/* ======================= FIRESTORE SETUP ======================= */
+async function maybeSeedProperties(){
+  const metaRef = db.collection('config').doc('meta');
+  const metaSnap = await metaRef.get();
+  const meta = metaSnap.exists ? metaSnap.data() : {};
+  if(!meta.seeded){
+    const propsSnap = await db.collection('properties').get();
+    if(propsSnap.empty){
+      const seed = [
+        {name:"F3 Cabourg - Alfred Piat", location:"Cabourg"},
+        {name:"F2 Cabourg - L'Intemporel", location:"Cabourg"},
+        {name:"Chalet 10", location:"Dozulé"},
+        {name:"Chalet Cosy", location:"Cabourg"},
+        {name:"Villers", location:"Villers-sur-Mer"},
+        {name:"Blonville-sur-Mer", location:"Blonville-sur-Mer"},
+      ];
+      const batch = db.batch();
+      seed.forEach(p=>{ const ref = db.collection('properties').doc(); batch.set(ref, p); });
+      await batch.commit();
+    }
+    await metaRef.set({seeded:true}, {merge:true});
+  }
+  const adminSnap = await db.collection('config').doc('admin').get();
+  if(!adminSnap.exists){
+    await db.collection('config').doc('admin').set({pin:'0000', whatsapp:''});
+  }
+}
+
+function checkLoaded(flag){
+  S.loadedFlags[flag] = true;
+  if(Object.values(S.loadedFlags).every(Boolean)) S.loaded = true;
+  render();
+}
+
+function initFirestoreListeners(){
+  db.collection('providers').onSnapshot(snap=>{
+    S.providers = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    checkLoaded('providers');
+  });
+  db.collection('properties').onSnapshot(snap=>{
+    S.properties = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    checkLoaded('properties');
+  });
+  db.collection('tasks').onSnapshot(snap=>{
+    S.tasks = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    checkLoaded('tasks');
+  });
+  db.collection('config').doc('admin').onSnapshot(doc=>{
+    if(doc.exists) S.adminConfig = doc.data();
+    checkLoaded('config');
+  });
+}
+
+async function startApp(){
+  if(NOT_CONFIGURED){ render(); return; }
+  try{
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    await maybeSeedProperties();
+    initFirestoreListeners();
+  }catch(e){
+    console.error(e);
+    document.getElementById('app').innerHTML = `<div class="setup-wrap"><h1>Erreur de connexion</h1><p>Impossible de se connecter à la base de données. Vérifiez la configuration Firebase collée dans le fichier, et que Firestore est bien activé sur le projet.</p></div>`;
+  }
+}
+
+/* ======================= IMAGE HELPERS ======================= */
+function resizeImage(file, maxDim, quality){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        let w = img.width, h = img.height;
+        if(w > h && w > maxDim){ h = Math.round(h*maxDim/w); w = maxDim; }
+        else if(h >= w && h > maxDim){ w = Math.round(w*maxDim/h); h = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ======================= AUTH ======================= */
+function tryAdminLogin(pin){
+  if(pin === S.adminConfig.pin){
+    S.session = {role:'admin'};
+    S.loginError = '';
+    S.view = 'tasks';
+  } else {
+    S.loginError = 'Code incorrect.';
+  }
+  render();
+}
+function tryProviderLogin(providerId, code){
+  const p = S.providers.find(pr=>pr.id===providerId);
+  if(!p){ S.loginError = 'Choisissez votre nom.'; render(); return; }
+  if(p.code !== code){ S.loginError = 'Code incorrect.'; render(); return; }
+  S.session = {role:'provider', id:p.id, name:p.name};
+  S.loginError = '';
+  render();
+}
+function logout(){ S.session=null; S.loginError=''; S.modal=null; render(); }
+
+/* ======================= MUTATIONS (Firestore) ======================= */
+async function addProvider(name, code){ await db.collection('providers').add({name, code, active:true}); }
+async function removeProvider(id){ await db.collection('providers').doc(id).delete(); }
+async function addProperty(name, location){ await db.collection('properties').add({name, location}); }
+async function removeProperty(id){ await db.collection('properties').doc(id).delete(); }
+async function addTask(t){ await db.collection('tasks').add({status:'a_faire', photosBefore:[], photosAfter:[], notes:'', ...t}); }
+async function updateTask(id, patch){ await db.collection('tasks').doc(id).update(patch); }
+async function removeTask(id){ await db.collection('tasks').doc(id).delete(); }
+async function setAdminPin(pin, whatsapp){ await db.collection('config').doc('admin').set({pin, whatsapp}); }
+
+/* ======================= RENDER HELPERS ======================= */
+function propName(id){ const p=S.properties.find(x=>x.id===id); return p?p.name:'—'; }
+function propLoc(id){ const p=S.properties.find(x=>x.id===id); return p?p.location:''; }
+function provName(id){ const p=S.providers.find(x=>x.id===id); return p?p.name:'—'; }
+
+function header(){
+  const roleLabel = S.session?.role==='admin' ? 'Administrateur' : (S.session?.name||'');
+  return `
+  <div class="header">
+    <div class="brand">
+      <div class="brand-name">MERAN</div>
+      <div class="brand-sub">Nettoyage &amp; Conciergerie</div>
+    </div>
+    <div class="header-actions">
+      <div class="who">${roleLabel}</div>
+      <button class="logout" onclick="logout()">Sortir</button>
+    </div>
+  </div>`;
+}
+
+/* ======================= SETUP SCREEN ======================= */
+function renderSetup(){
+  return `
+  <div class="setup-wrap">
+    <h1>MERAN — configuration requise</h1>
+    <p>Cette version indépendante de l'appli a besoin d'être connectée à votre propre base de données gratuite avant de fonctionner.</p>
+    <ol>
+      <li>Ouvrez <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a> et créez un projet gratuit.</li>
+      <li>Dans le projet, cliquez sur l'icône <code>&lt;/&gt;</code> pour ajouter une application Web.</li>
+      <li>Copiez l'objet <code>firebaseConfig</code> affiché.</li>
+      <li>Ouvrez ce fichier <code>.html</code> dans un éditeur de texte et collez-le à la place des <code>COLLEZ_ICI</code>, au tout début du script.</li>
+      <li>Dans Firebase, allez dans <code>Firestore Database</code> → <code>Créer une base de données</code> → mode test.</li>
+      <li>Enregistrez le fichier et réouvrez-le.</li>
+    </ol>
+    <p>Suivez le guide détaillé fourni séparément pour l'hébergement en ligne gratuit.</p>
+  </div>`;
+}
+
+/* ======================= LOGIN VIEW ======================= */
+function renderLogin(){
+  const isAdmin = S.loginRole==='admin';
+  return `
+  <div class="login-wrap">
+    <div class="login-title">MERAN</div>
+    <div class="login-sub">Nettoyage &amp; Conciergerie — gestion des tâches</div>
+    <div class="role-switch">
+      <button class="role-btn ${!isAdmin?'active':''}" onclick="S.loginRole='provider';S.loginError='';render()">Prestataire</button>
+      <button class="role-btn ${isAdmin?'active':''}" onclick="S.loginRole='admin';S.loginError='';render()">Administrateur</button>
+    </div>
+    ${isAdmin ? `
+      <div class="field"><label>Code administrateur</label><input id="adminPin" type="password" inputmode="numeric" placeholder="••••"></div>
+      <button class="primary-btn" onclick="tryAdminLogin(document.getElementById('adminPin').value)">Se connecter</button>
+    ` : `
+      <div class="field">
+        <label>Votre nom</label>
+        <select id="provSelect"><option value="">Sélectionner…</option>${S.providers.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}</select>
+      </div>
+      <div class="field"><label>Votre code</label><input id="provCode" type="password" inputmode="numeric" placeholder="Code"></div>
+      <button class="primary-btn clay" onclick="tryProviderLogin(document.getElementById('provSelect').value, document.getElementById('provCode').value)">Se connecter</button>
+      ${S.providers.length===0 ? `<div class="hint">Aucun prestataire enregistré pour le moment. L'administrateur doit d'abord en ajouter un.</div>` : ''}
+    `}
+    ${S.loginError ? `<div class="error-msg">${S.loginError}</div>` : ''}
+  </div>`;
+}
+
+/* ======================= ADMIN TABS ======================= */
+function renderAdminTasks(){
+  const sorted = [...S.tasks].sort((a,b)=> a.date<b.date?-1:1);
+  return `
+  <div class="content">
+    <div class="section-title">Tâches</div>
+    ${sorted.length===0 ? `<div class="empty-state">Aucune tâche pour l'instant.<br>Touchez le bouton + pour en créer une.</div>` : ''}
+    ${sorted.map(t=>`
+      <div class="card" onclick="openTaskDetail('${t.id}')">
+        <div class="card-top">
+          <div>
+            <div class="card-title">${propName(t.propertyId)}</div>
+            <div class="card-sub">${fmtDate(t.date)} · ${provName(t.providerId)}</div>
+          </div>
+          <span class="badge ${t.status}">${t.status==='fait'?'Fait':'À faire'}</span>
+        </div>
+        <div class="card-meta">
+          ${t.photosBefore?.length ? `<span class="pill">${t.photosBefore.length} photo(s) avant</span>`:''}
+          ${t.photosAfter?.length ? `<span class="pill">${t.photosAfter.length} photo(s) après</span>`:''}
+        </div>
+      </div>
+    `).join('')}
+  </div>
+  <button class="fab" onclick="openNewTask()">+</button>`;
+}
+function renderAdminProviders(){
+  return `
+  <div class="content">
+    <div class="section-title">Prestataires</div>
+    ${S.providers.length===0 ? `<div class="empty-state">Aucun prestataire ajouté.</div>` : ''}
+    ${S.providers.map(p=>`
+      <div class="list-row">
+        <div><div class="list-row-main">${p.name}</div><div class="list-row-sub">Code : ${p.code}</div></div>
+        <button class="icon-btn" onclick="if(confirm('Supprimer ${p.name.replace(/'/g,"\\'")} ?')) removeProvider('${p.id}')">✕</button>
+      </div>
+    `).join('')}
+  </div>
+  <button class="fab" onclick="openNewProvider()">+</button>`;
+}
+function renderAdminProperties(){
+  return `
+  <div class="content">
+    <div class="section-title">Propriétés</div>
+    ${S.properties.map(p=>`
+      <div class="list-row">
+        <div><div class="list-row-main">${p.name}</div><div class="list-row-sub">${p.location||''}</div></div>
+        <button class="icon-btn" onclick="if(confirm('Supprimer ${p.name.replace(/'/g,"\\'")} ?')) removeProperty('${p.id}')">✕</button>
+      </div>
+    `).join('')}
+  </div>
+  <button class="fab" onclick="openNewProperty()">+</button>`;
+}
+function renderAdminSettings(){
+  return `
+  <div class="content">
+    <div class="section-title">Réglages</div>
+    <div class="card">
+      <div class="detail-label">Code administrateur</div>
+      <div class="field" style="margin-top:6px;"><input id="newPin" type="password" inputmode="numeric" placeholder="Nouveau code"></div>
+      <div class="detail-label">Numéro WhatsApp pour vidéos</div>
+      <div class="field" style="margin-top:6px;"><input id="newWa" type="tel" placeholder="ex : 33612345678" value="${S.adminConfig.whatsapp||''}"></div>
+      <button class="primary-btn" onclick="setAdminPin(document.getElementById('newPin').value || S.adminConfig.pin, document.getElementById('newWa').value)">Enregistrer</button>
+    </div>
+    <div class="storage-note">
+      Les données (tâches, photos, prestataires) sont stockées dans votre propre base de données Firebase et visibles par toute personne qui a le lien de l'appli — il n'y a pas de compte sécurisé au sens strict, seulement un code d'accès. Pensez à supprimer les tâches anciennes de temps en temps.
+    </div>
+  </div>`;
+}
+function renderAdmin(){
+  const tabs = [{id:'tasks',label:'Tâches'},{id:'providers',label:'Prestataires'},{id:'properties',label:'Propriétés'},{id:'settings',label:'Réglages'}];
+  let body = '';
+  if(S.view==='tasks') body = renderAdminTasks();
+  else if(S.view==='providers') body = renderAdminProviders();
+  else if(S.view==='properties') body = renderAdminProperties();
+  else body = renderAdminSettings();
+  return `
+  ${header()}
+  ${body}
+  <div class="tabbar">
+    ${tabs.map(t=>`<button class="tab-btn ${S.view===t.id?'active':''}" onclick="S.view='${t.id}';render()"><span class="tab-dot"></span>${t.label}</button>`).join('')}
+  </div>
+  ${S.modal ? renderModal() : ''}`;
+}
+
+/* ======================= PROVIDER VIEW ======================= */
+function renderProvider(){
+  const mine = S.tasks.filter(t=>t.providerId===S.session.id).sort((a,b)=> a.date<b.date?-1:1);
+  return `
+  ${header()}
+  <div class="content">
+    <div class="section-title">Bonjour, ${S.session.name}</div>
+    ${mine.length===0 ? `<div class="empty-state">Aucune tâche ne vous est assignée pour le moment.</div>` : ''}
+    ${mine.map(t=>`
+      <div class="card" onclick="openTaskDetail('${t.id}')">
+        <div class="card-top">
+          <div>
+            <div class="card-title">${propName(t.propertyId)}</div>
+            <div class="card-sub">${fmtDate(t.date)}${propLoc(t.propertyId)?' · '+propLoc(t.propertyId):''}</div>
+          </div>
+          <span class="badge ${t.status}">${t.status==='fait'?'Fait':'À faire'}</span>
+        </div>
+      </div>
+    `).join('')}
+  </div>
+  ${S.modal ? renderModal() : ''}`;
+}
+
+/* ======================= MODALS ======================= */
+function openNewTask(){ S.modal = {type:'newTask'}; render(); }
+function openNewProvider(){ S.modal = {type:'newProvider'}; render(); }
+function openNewProperty(){ S.modal = {type:'newProperty'}; render(); }
+function openTaskDetail(id){ S.modal = {type:'taskDetail', id}; render(); }
+function closeModal(){ S.modal=null; render(); }
+
+async function submitNewTask(){
+  const propertyId = document.getElementById('taskProperty').value;
+  const providerId = document.getElementById('taskProvider').value;
+  const date = document.getElementById('taskDate').value;
+  const notes = document.getElementById('taskNotes').value;
+  if(!propertyId || !providerId || !date){ return; }
+  await addTask({propertyId, providerId, date, notes});
+  closeModal();
+}
+async function submitNewProvider(){
+  const name = document.getElementById('newProvName').value.trim();
+  const code = document.getElementById('newProvCode').value.trim();
+  if(!name || !code) return;
+  await addProvider(name, code);
+  closeModal();
+}
+async function submitNewProperty(){
+  const name = document.getElementById('newPropName').value.trim();
+  const location = document.getElementById('newPropLoc').value.trim();
+  if(!name) return;
+  await addProperty(name, location);
+  closeModal();
+}
+async function handlePhotoInput(taskId, kind, inputEl){
+  const file = inputEl.files[0];
+  if(!file) return;
+  const dataUrl = await resizeImage(file, 800, 0.5);
+  const t = S.tasks.find(x=>x.id===taskId);
+  const key = kind==='before' ? 'photosBefore' : 'photosAfter';
+  const arr = [...(t[key]||[]), dataUrl];
+  await updateTask(taskId, {[key]: arr});
+  render();
+}
+
+function renderModal(){
+  if(S.modal.type==='newTask') return modalNewTask();
+  if(S.modal.type==='newProvider') return modalNewProvider();
+  if(S.modal.type==='newProperty') return modalNewProperty();
+  if(S.modal.type==='taskDetail') return modalTaskDetail(S.modal.id);
+  return '';
+}
+function modalNewTask(){
+  return `
+  <div class="overlay" onclick="if(event.target===this) closeModal()">
+    <div class="sheet" style="position:relative;">
+      <button class="sheet-close" onclick="closeModal()">✕</button>
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">Nouvelle tâche</div>
+      <div class="field"><label>Propriété</label><select id="taskProperty">${S.properties.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}</select></div>
+      <div class="field"><label>Prestataire</label><select id="taskProvider">${S.providers.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}</select></div>
+      <div class="field"><label>Date</label><input id="taskDate" type="date" value="${todayISO()}"></div>
+      <div class="field"><label>Notes / instructions</label><textarea id="taskNotes" rows="3" style="width:100%;padding:12px 13px;border-radius:10px;border:1px solid var(--line);font-size:14.5px;"></textarea></div>
+      ${S.providers.length===0 ? `<div class="error-msg">Ajoutez d'abord un prestataire dans l'onglet Prestataires.</div>` : ''}
+      ${S.properties.length===0 ? `<div class="error-msg">Ajoutez d'abord une propriété.</div>` : ''}
+      <button class="primary-btn" onclick="submitNewTask()">Créer la tâche</button>
+    </div>
+  </div>`;
+}
+function modalNewProvider(){
+  return `
+  <div class="overlay" onclick="if(event.target===this) closeModal()">
+    <div class="sheet" style="position:relative;">
+      <button class="sheet-close" onclick="closeModal()">✕</button>
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">Nouveau prestataire</div>
+      <div class="field"><label>Nom</label><input id="newProvName" type="text" placeholder="ex : Sophie"></div>
+      <div class="field"><label>Code d'accès</label><input id="newProvCode" type="text" placeholder="ex : 1234"></div>
+      <button class="primary-btn" onclick="submitNewProvider()">Ajouter</button>
+    </div>
+  </div>`;
+}
+function modalNewProperty(){
+  return `
+  <div class="overlay" onclick="if(event.target===this) closeModal()">
+    <div class="sheet" style="position:relative;">
+      <button class="sheet-close" onclick="closeModal()">✕</button>
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">Nouvelle propriété</div>
+      <div class="field"><label>Nom</label><input id="newPropName" type="text" placeholder="ex : Villa des Dunes"></div>
+      <div class="field"><label>Localisation</label><input id="newPropLoc" type="text" placeholder="ex : Cabourg"></div>
+      <button class="primary-btn" onclick="submitNewProperty()">Ajouter</button>
+    </div>
+  </div>`;
+}
+function modalTaskDetail(id){
+  const t = S.tasks.find(x=>x.id===id);
+  if(!t) return '';
+  const isAdmin = S.session.role==='admin';
+  const waNumber = (S.adminConfig.whatsapp||'').replace(/[^0-9]/g,'');
+  return `
+  <div class="overlay" onclick="if(event.target===this) closeModal()">
+    <div class="sheet" style="position:relative;">
+      <button class="sheet-close" onclick="closeModal()">✕</button>
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">${propName(t.propertyId)}</div>
+      <div class="detail-label">Date</div><div class="detail-text">${fmtDate(t.date)}</div>
+      <div class="detail-label">Prestataire</div><div class="detail-text">${provName(t.providerId)}</div>
+      ${t.notes ? `<div class="detail-label">Notes</div><div class="detail-text">${t.notes}</div>` : ''}
+      <div class="detail-label">Statut</div>
+      <div class="status-toggle">
+        <button class="status-opt a_faire ${t.status==='a_faire'?'selected':''}" onclick="updateTask('${t.id}',{status:'a_faire'})">À faire</button>
+        <button class="status-opt fait ${t.status==='fait'?'selected':''}" onclick="updateTask('${t.id}',{status:'fait'})">Fait</button>
+      </div>
+      <div class="detail-label">Photos avant</div>
+      <div class="photo-row">
+        ${(t.photosBefore||[]).map(src=>`<img class="photo-thumb" src="${src}">`).join('')}
+        <label class="photo-add">＋<input type="file" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoInput('${t.id}','before',this)"></label>
+      </div>
+      <div class="detail-label">Photos après</div>
+      <div class="photo-row">
+        ${(t.photosAfter||[]).map(src=>`<img class="photo-thumb" src="${src}">`).join('')}
+        <label class="photo-add">＋<input type="file" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoInput('${t.id}','after',this)"></label>
+      </div>
+      ${waNumber ? `<button class="wa-btn" onclick="window.open('https://wa.me/${waNumber}','_blank')">Envoyer une vidéo par WhatsApp</button>` : ''}
+      ${isAdmin ? `<div class="row-actions"><button class="ghost-btn danger-text" onclick="if(confirm('Supprimer cette tâche ?')){removeTask('${t.id}');closeModal();}">Supprimer la tâche</button></div>` : ''}
+    </div>
+  </div>`;
+}
+
+/* ======================= ROOT RENDER ======================= */
+function render(){
+  const root = document.getElementById('app');
+  if(NOT_CONFIGURED){ root.innerHTML = renderSetup(); return; }
+  if(!S.loaded){ root.innerHTML = `<div class="login-wrap"><div class="login-title">MERAN</div><div class="login-sub">Chargement…</div></div>`; return; }
+  if(!S.session){ root.innerHTML = renderLogin(); return; }
+  if(S.session.role==='admin'){ root.innerHTML = renderAdmin(); return; }
+  root.innerHTML = renderProvider();
+}
+
+startApp();
+render();
+</script>
+</body>
+</html>
