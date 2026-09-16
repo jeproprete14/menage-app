@@ -85,6 +85,7 @@
   .badge{font-size:11px;font-weight:700;padding:4px 9px;border-radius:20px;white-space:nowrap;}
   .badge.a_faire{background:var(--amber-tint);color:var(--amber);}
   .badge.fait{background:var(--sage-tint);color:var(--sage);}
+  .badge.valide{background:var(--teal-tint);color:var(--teal-dark);}
   .card-meta{display:flex;gap:8px;margin-top:9px;font-size:12px;color:var(--ink-soft);flex-wrap:wrap;}
   .pill{background:var(--teal-tint);color:var(--teal-dark);border-radius:20px;padding:3px 9px;font-weight:600;}
 
@@ -110,6 +111,7 @@
   .status-opt{flex:1;padding:11px 0;text-align:center;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);font-size:13.5px;font-weight:700;color:var(--ink-soft);}
   .status-opt.selected.a_faire{border-color:var(--amber);background:var(--amber-tint);color:var(--amber);}
   .status-opt.selected.fait{border-color:var(--sage);background:var(--sage-tint);color:var(--sage);}
+  .status-opt.selected.valide{border-color:var(--teal);background:var(--teal-tint);color:var(--teal-dark);}
 
   .wa-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--teal-dark);font-size:13.5px;font-weight:600;margin-top:8px;}
 
@@ -377,7 +379,7 @@ function renderAdminTasks(){
             <div class="card-title">${propName(t.propertyId)}</div>
             <div class="card-sub">${fmtDate(t.date)} · ${provName(t.providerId)}</div>
           </div>
-          <span class="badge ${t.status}">${t.status==='fait'?'Fait':'À faire'}</span>
+          <span class="badge ${t.status}">${t.status==='valide'?'Validé':t.status==='fait'?'Fait':'À faire'}</span>
         </div>
         <div class="card-meta">
           ${t.photosBefore?.length ? `<span class="pill">${t.photosBefore.length} photo(s) avant</span>`:''}
@@ -462,7 +464,7 @@ function renderProvider(){
             <div class="card-title">${propName(t.propertyId)}</div>
             <div class="card-sub">${fmtDate(t.date)}${propLoc(t.propertyId)?' · '+propLoc(t.propertyId):''}</div>
           </div>
-          <span class="badge ${t.status}">${t.status==='fait'?'Fait':'À faire'}</span>
+          <span class="badge ${t.status}">${t.status==='valide'?'Validé':t.status==='fait'?'Fait':'À faire'}</span>
         </div>
       </div>
     `).join('')}
@@ -607,8 +609,12 @@ function modalTaskDetail(id){
       <div class="detail-label">Statut</div>
       <div class="status-toggle">
         <button class="status-opt a_faire ${t.status==='a_faire'?'selected':''}" onclick="updateTask('${t.id}',{status:'a_faire'})">À faire</button>
-        <button class="status-opt fait ${t.status==='fait'?'selected':''}" onclick="updateTask('${t.id}',{status:'fait'})">Fait</button>
+        <button class="status-opt fait ${t.status==='fait'?'selected':''}" onclick="updateTask('${t.id}',{status:'fait', completedAt:new Date().toISOString()})">Fait</button>
+        ${isAdmin ? `<button class="status-opt valide ${t.status==='valide'?'selected':''}" onclick="updateTask('${t.id}',{status:'valide', validatedAt:new Date().toISOString()})">Validé</button>` : ''}
       </div>
+      ${!isAdmin && t.status==='fait' ? `<div class="hint">En attente de validation par l'administrateur.</div>` : ''}
+      ${t.completedAt ? `<div class="detail-text" style="margin-top:6px;color:var(--ink-soft);">Marqué fait le ${new Date(t.completedAt).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} à ${new Date(t.completedAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</div>` : ''}
+      ${t.status==='valide' && t.validatedAt ? `<div class="detail-text" style="color:var(--teal-dark);font-weight:600;">✓ Validé le ${new Date(t.validatedAt).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} à ${new Date(t.validatedAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</div>` : ''}
       <div class="detail-label">Photos avant</div>
       <div class="photo-row">
         ${(t.photosBefore||[]).map(src=>`<img class="photo-thumb" src="${src}">`).join('')}
