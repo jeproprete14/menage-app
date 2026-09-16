@@ -317,7 +317,7 @@ function header(){
     <div class="brand">
       <img class="brand-logo" src="${LOGO_DATA_URI}" alt="Logo">
       <div class="brand-text">
-        <div class="brand-name">J&amp;C Propreté</div>
+        <div class="brand-name">J&amp;E Propreté</div>
         <div class="brand-sub">Nettoyage &amp; Conciergerie</div>
       </div>
     </div>
@@ -352,7 +352,7 @@ function renderLogin(){
   return `
   <div class="login-wrap">
     <img class="login-logo" src="${LOGO_DATA_URI}" alt="Logo">
-    <div class="login-title">J&amp;C Propreté</div>
+    <div class="login-title">J&amp;E Propreté</div>
     <div class="login-sub">Nettoyage &amp; Conciergerie — gestion des tâches</div>
     <div class="role-switch">
       <button class="role-btn ${!isAdmin?'active':''}" onclick="S.loginRole='provider';S.loginError='';render()">Prestataire</button>
@@ -644,7 +644,7 @@ function modalTaskDetail(id){
 function render(){
   const root = document.getElementById('app');
   if(NOT_CONFIGURED){ root.innerHTML = renderSetup(); return; }
-  if(!S.loaded){ root.innerHTML = `<div class="login-wrap"><img class="login-logo" src="${LOGO_DATA_URI}" alt="Logo"><div class="login-title">J&amp;C Propreté</div><div class="login-sub">Chargement…</div></div>`; return; }
+  if(!S.loaded){ root.innerHTML = `<div class="login-wrap"><img class="login-logo" src="${LOGO_DATA_URI}" alt="Logo"><div class="login-title">J&amp;E Propreté</div><div class="login-sub">Chargement…</div></div>`; return; }
   if(!S.session){ root.innerHTML = renderLogin(); return; }
   if(S.session.role==='admin'){ root.innerHTML = renderAdmin(); return; }
   root.innerHTML = renderProvider();
