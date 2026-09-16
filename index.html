@@ -53,10 +53,27 @@
   .logout{background:transparent;border:1px solid #3E6E75;color:#EAF3F2;border-radius:8px;padding:7px 10px;font-size:12.5px;}
   .logout:active{background:#1B4B54;}
 
-  .login-wrap{flex:1;display:flex;flex-direction:column;justify-content:center;padding:28px 22px;}
-  .login-title{font-size:24px;font-weight:700;margin:0 0 4px;color:var(--teal-dark);}
-  .login-logo{width:84px;height:84px;object-fit:contain;border-radius:16px;margin:0 auto 14px;display:block;}
-  .login-sub{font-size:13.5px;color:var(--ink-soft);margin:0 0 26px;}
+  .login-wrap{
+    flex:1;min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;
+    padding:28px 20px;position:relative;overflow:hidden;
+    background:
+      radial-gradient(circle at 12% 18%, rgba(255,255,255,0.14) 0 26px, transparent 27px),
+      radial-gradient(circle at 85% 12%, rgba(255,255,255,0.10) 0 16px, transparent 17px),
+      radial-gradient(circle at 78% 30%, rgba(255,255,255,0.16) 0 10px, transparent 11px),
+      radial-gradient(circle at 90% 78%, rgba(255,255,255,0.12) 0 34px, transparent 35px),
+      radial-gradient(circle at 15% 82%, rgba(255,255,255,0.10) 0 22px, transparent 23px),
+      radial-gradient(circle at 30% 60%, rgba(255,255,255,0.08) 0 8px, transparent 9px),
+      radial-gradient(circle at 60% 90%, rgba(255,255,255,0.09) 0 14px, transparent 15px),
+      linear-gradient(160deg, var(--teal-dark) 0%, var(--teal) 55%, #1E6B4F 100%);
+  }
+  .login-card{
+    position:relative;z-index:1;width:100%;max-width:400px;background:var(--surface);
+    border-radius:20px;padding:32px 26px 28px;box-shadow:0 18px 40px rgba(10,30,32,0.35);
+    border-top:4px solid var(--clay);
+  }
+  .login-title{font-size:24px;font-weight:700;margin:0 0 4px;color:var(--teal-dark);text-align:center;}
+  .login-logo{width:88px;height:88px;object-fit:contain;border-radius:18px;margin:0 auto 14px;display:block;box-shadow:0 6px 16px rgba(0,0,0,0.18);}
+  .login-sub{font-size:13.5px;color:var(--ink-soft);margin:0 0 24px;text-align:center;}
   .role-switch{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:20px;}
   .role-btn{flex:1;border:none;background:transparent;padding:10px 0;border-radius:7px;font-size:14px;font-weight:600;color:var(--ink-soft);}
   .role-btn.active{background:var(--teal);color:#fff;}
@@ -351,6 +368,7 @@ function renderLogin(){
   const isAdmin = S.loginRole==='admin';
   return `
   <div class="login-wrap">
+    <div class="login-card">
     <img class="login-logo" src="${LOGO_DATA_URI}" alt="Logo">
     <div class="login-title">J&amp;E Propreté</div>
     <div class="login-sub">Nettoyage &amp; Conciergerie — gestion des tâches</div>
@@ -371,6 +389,7 @@ function renderLogin(){
       ${S.providers.length===0 ? `<div class="hint">Aucun prestataire enregistré pour le moment. L'administrateur doit d'abord en ajouter un.</div>` : ''}
     `}
     ${S.loginError ? `<div class="error-msg">${S.loginError}</div>` : ''}
+    </div>
   </div>`;
 }
 
@@ -644,7 +663,7 @@ function modalTaskDetail(id){
 function render(){
   const root = document.getElementById('app');
   if(NOT_CONFIGURED){ root.innerHTML = renderSetup(); return; }
-  if(!S.loaded){ root.innerHTML = `<div class="login-wrap"><img class="login-logo" src="${LOGO_DATA_URI}" alt="Logo"><div class="login-title">J&amp;E Propreté</div><div class="login-sub">Chargement…</div></div>`; return; }
+  if(!S.loaded){ root.innerHTML = `<div class="login-wrap"><div class="login-card"><img class="login-logo" src="${LOGO_DATA_URI}" alt="Logo"><div class="login-title">J&amp;E Propreté</div><div class="login-sub">Chargement…</div></div></div>`; return; }
   if(!S.session){ root.innerHTML = renderLogin(); return; }
   if(S.session.role==='admin'){ root.innerHTML = renderAdmin(); return; }
   root.innerHTML = renderProvider();
