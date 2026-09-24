@@ -237,11 +237,11 @@ function timeBox(t, field, label, nowLabel, isAdmin){
   if(v){
     return `<div class="time-box"><label>${label}</label><div class="saved-ok">✓ Heure enregistrée</div></div>`;
   }
-  const inId = 'tin_'+field+'_'+t.id;
+  if(field==='endAt' && !t.startAt){
+    return `<div class="time-box"><label>${label}</label><div class="hint" style="margin-top:0;">Appuyez d'abord sur « Commencer maintenant ».</div></div>`;
+  }
   return `<div class="time-box"><label>${label}</label>
-    <input id="${inId}" type="time">
-    <button class="now-btn save-btn" onclick="const x=document.getElementById('${inId}').value; if(!x){alert('Choisissez une heure.');return;} setTaskTime('${t.id}','${field}',x)">Enregistrer cette heure</button>
-    <button class="now-btn" onclick="setTaskTime('${t.id}','${field}',nowLocal())">${nowLabel}</button></div>`;
+    <button class="now-btn save-btn" onclick="recordNow('${t.id}','${field}')">${nowLabel}</button></div>`;
 }
 function photoList(t, key, isAdmin){
   const dates = t[key+'At']||[];
@@ -251,9 +251,17 @@ function photoList(t, key, isAdmin){
     return `<div class="photo-item"><img class="photo-thumb" src="${src}">${label}</div>`;
   }).join('');
 }
+async function recordNow(taskId, field){
+  const t = S.tasks.find(x=>x.id===taskId);
+  if(!t || t[field]) return;
+  if(field==='endAt' && !t.startAt){ alert("Appuyez d'abord sur « Commencer maintenant »."); return; }
+  const msg = field==='startAt' ? "Confirmer le début de la prestation maintenant ?" : "Confirmer la fin de la prestation maintenant ?";
+  if(!confirm(msg)) return;
+  await updateTask(taskId, {[field]: nowLocal(), [field+'Ts']: firebase.firestore.FieldValue.serverTimestamp()});
+}
 async function setTaskTime(taskId, field, value){
   const t = S.tasks.find(x=>x.id===taskId);
-  const patch = {[field]: value||''};
+  const patch = {[field]: value||'', [field+'Ts']: firebase.firestore.FieldValue.delete()};
   const start = field==='startAt' ? value : t.startAt;
   const end = field==='endAt' ? value : t.endAt;
   if(start && end && hmMin(end) < hmMin(start)){ alert("L'heure de fin doit être après l'heure de début."); render(); return; }
@@ -304,7 +312,18 @@ function initFirestoreListeners(){
     checkLoaded('properties');
   });
   db.collection('tasks').onSnapshot(snap=>{
-    S.tasks = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    S.tasks = snap.docs.map(d=>{
+      const t = {id:d.id, ...d.data({serverTimestamps:'estimate'})};
+      const hm = (ts)=>{ const x=ts.toDate(); return String(x.getHours()).padStart(2,'0')+':'+String(x.getMinutes()).padStart(2,'0'); };
+      if(t.startAtTs && t.startAtTs.toDate) t.startAt = hm(t.startAtTs);
+      if(t.endAtTs && t.endAtTs.toDate) t.endAt = hm(t.endAtTs);
+      if(t.completedTs && t.completedTs.toDate) t.completedAt = t.completedTs.toDate().toISOString();
+      ['photosBefore','photosAfter'].forEach(k=>{
+        const m = t[k+'Ts'];
+        if(m){ const arr=[...(t[k+'At']||[])]; Object.keys(m).forEach(i=>{ if(m[i] && m[i].toDate) arr[+i]=m[i].toDate().toISOString(); }); t[k+'At']=arr; }
+      });
+      return t;
+    });
     checkLoaded('tasks');
   });
   db.collection('config').doc('admin').onSnapshot(doc=>{
@@ -612,7 +631,7 @@ async function handlePhotoInput(taskId, kind, inputEl){
   const dates = [...(t[key+'At']||[])];
   while(dates.length < arr.length-1) dates.push('');
   dates.push(new Date().toISOString());
-  await updateTask(taskId, {[key]: arr, [key+'At']: dates});
+  await updateTask(taskId, {[key]: arr, [key+'At']: dates, [key+'Ts.'+(arr.length-1)]: firebase.firestore.FieldValue.serverTimestamp()});
   render();
 }
 
@@ -708,7 +727,7 @@ function modalTaskDetail(id){
       <div class="detail-label">Statut</div>
       <div class="status-toggle">
         <button class="status-opt a_faire ${t.status==='a_faire'?'selected':''}" onclick="updateTask('${t.id}',{status:'a_faire'})">À faire</button>
-        <button class="status-opt fait ${t.status==='fait'?'selected':''}" onclick="updateTask('${t.id}',{status:'fait', completedAt:new Date().toISOString()})">Fait</button>
+        <button class="status-opt fait ${t.status==='fait'?'selected':''}" onclick="updateTask('${t.id}',{status:'fait', completedAt:new Date().toISOString(), completedTs:firebase.firestore.FieldValue.serverTimestamp()})">Fait</button>
         ${isAdmin ? `<button class="status-opt valide ${t.status==='valide'?'selected':''}" onclick="updateTask('${t.id}',{status:'valide', validatedAt:new Date().toISOString()})">Validé</button>` : ''}
       </div>
       ${!isAdmin && t.status==='fait' ? `<div class="hint">En attente de validation par l'administrateur.</div>` : ''}
