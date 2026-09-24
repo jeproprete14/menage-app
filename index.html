@@ -133,6 +133,13 @@
   .status-opt.selected.fait{border-color:var(--sage);background:var(--sage-tint);color:var(--sage);}
   .status-opt.selected.valide{border-color:var(--teal);background:var(--teal-tint);color:var(--teal-dark);}
 
+  .time-grid{display:grid;grid-template-columns:1fr;gap:10px;margin-top:6px;}
+  .time-box{min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px;}
+  .time-box label{display:block;font-size:11.5px;color:var(--ink-soft);font-weight:600;margin-bottom:6px;}
+  .time-box input{width:100%;padding:9px 8px;border-radius:8px;border:1px solid var(--line);font-size:14px;color:var(--ink);background:var(--bg);}
+  .now-btn{width:100%;margin-top:7px;padding:8px 0;border-radius:8px;border:none;background:var(--teal-tint);color:var(--teal-dark);font-size:12.5px;font-weight:700;}
+  .now-btn:active{background:#CFE0DE;}
+  .duration{font-size:13px;color:var(--teal-dark);font-weight:600;margin-top:8px;}
   .wa-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--teal-dark);font-size:13.5px;font-weight:600;margin-top:8px;}
 
   .list-row{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:13px 15px;margin-bottom:9px;display:flex;justify-content:space-between;align-items:center;gap:10px;}
@@ -198,6 +205,30 @@ const fmtDate = (iso) => {
   const d = new Date(iso+'T00:00:00');
   return d.toLocaleDateString('fr-FR',{weekday:'short', day:'numeric', month:'short'});
 };
+
+const nowLocal = () => { const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,16); };
+const fmtDT = (v) => { if(!v) return ''; const d=new Date(v); return d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); };
+const fmtHM = (v) => v ? new Date(v).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '';
+const fmtDuration = (a,b) => {
+  if(!a||!b) return '';
+  const m = Math.round((new Date(b)-new Date(a))/60000);
+  if(isNaN(m) || m<0) return '';
+  const h = Math.floor(m/60), r = m%60;
+  return h ? `${h} h ${String(r).padStart(2,'0')}` : `${r} min`;
+};
+function timesPill(t){
+  if(!t.startAt && !t.endAt) return '';
+  const d = fmtDuration(t.startAt,t.endAt);
+  return `<span class="pill">🕒 ${t.startAt?fmtHM(t.startAt):'…'} → ${t.endAt?fmtHM(t.endAt):'…'}${d?' · '+d:''}</span>`;
+}
+async function setTaskTime(taskId, field, value){
+  const t = S.tasks.find(x=>x.id===taskId);
+  const patch = {[field]: value||''};
+  const start = field==='startAt' ? value : t.startAt;
+  const end = field==='endAt' ? value : t.endAt;
+  if(start && end && new Date(end) < new Date(start)){ alert("L'heure de fin doit être après l'heure de début."); render(); return; }
+  await updateTask(taskId, patch);
+}
 
 /* ======================= FIRESTORE SETUP ======================= */
 async function maybeSeedProperties(){
@@ -410,6 +441,7 @@ function renderAdminTasks(){
           <span class="badge ${t.status}">${t.status==='valide'?'Validé':t.status==='fait'?'Fait':'À faire'}</span>
         </div>
         <div class="card-meta">
+          ${timesPill(t)}
           ${t.photosBefore?.length ? `<span class="pill">${t.photosBefore.length} photo(s) avant</span>`:''}
           ${t.photosAfter?.length ? `<span class="pill">${t.photosAfter.length} photo(s) après</span>`:''}
         </div>
@@ -494,6 +526,7 @@ function renderProvider(){
           </div>
           <span class="badge ${t.status}">${t.status==='valide'?'Validé':t.status==='fait'?'Fait':'À faire'}</span>
         </div>
+        ${timesPill(t) ? `<div class="card-meta">${timesPill(t)}</div>` : ''}
       </div>
     `).join('')}
   </div>
@@ -634,6 +667,20 @@ function modalTaskDetail(id){
       <div class="detail-label">Date</div><div class="detail-text">${fmtDate(t.date)}</div>
       <div class="detail-label">Prestataire</div><div class="detail-text">${provName(t.providerId)}</div>
       ${t.notes ? `<div class="detail-label">Notes</div><div class="detail-text">${t.notes}</div>` : ''}
+      <div class="detail-label">Horaires de la prestation</div>
+      <div class="time-grid">
+        <div class="time-box">
+          <label>Début</label>
+          <input type="datetime-local" value="${t.startAt||''}" onchange="setTaskTime('${t.id}','startAt',this.value)">
+          <button class="now-btn" onclick="setTaskTime('${t.id}','startAt',nowLocal())">Commencer maintenant</button>
+        </div>
+        <div class="time-box">
+          <label>Fin</label>
+          <input type="datetime-local" value="${t.endAt||''}" onchange="setTaskTime('${t.id}','endAt',this.value)">
+          <button class="now-btn" onclick="setTaskTime('${t.id}','endAt',nowLocal())">Terminer maintenant</button>
+        </div>
+      </div>
+      ${fmtDuration(t.startAt,t.endAt) ? `<div class="duration">Durée : ${fmtDuration(t.startAt,t.endAt)}</div>` : ''}
       <div class="detail-label">Statut</div>
       <div class="status-toggle">
         <button class="status-opt a_faire ${t.status==='a_faire'?'selected':''}" onclick="updateTask('${t.id}',{status:'a_faire'})">À faire</button>
