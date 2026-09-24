@@ -206,12 +206,13 @@ const fmtDate = (iso) => {
   return d.toLocaleDateString('fr-FR',{weekday:'short', day:'numeric', month:'short'});
 };
 
-const nowLocal = () => { const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,16); };
-const fmtDT = (v) => { if(!v) return ''; const d=new Date(v); return d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); };
-const fmtHM = (v) => v ? new Date(v).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '';
+const nowLocal = () => { const d=new Date(); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); };
+const toHM = (v) => v ? String(v).slice(-5) : '';
+const fmtHM = (v) => toHM(v).replace(':',' h ');
+const hmMin = (v) => { const [h,m]=toHM(v).split(':').map(Number); return h*60+m; };
 const fmtDuration = (a,b) => {
   if(!a||!b) return '';
-  const m = Math.round((new Date(b)-new Date(a))/60000);
+  const m = hmMin(b)-hmMin(a);
   if(isNaN(m) || m<0) return '';
   const h = Math.floor(m/60), r = m%60;
   return h ? `${h} h ${String(r).padStart(2,'0')}` : `${r} min`;
@@ -226,7 +227,7 @@ async function setTaskTime(taskId, field, value){
   const patch = {[field]: value||''};
   const start = field==='startAt' ? value : t.startAt;
   const end = field==='endAt' ? value : t.endAt;
-  if(start && end && new Date(end) < new Date(start)){ alert("L'heure de fin doit être après l'heure de début."); render(); return; }
+  if(start && end && hmMin(end) < hmMin(start)){ alert("L'heure de fin doit être après l'heure de début."); render(); return; }
   await updateTask(taskId, patch);
 }
 
@@ -671,12 +672,12 @@ function modalTaskDetail(id){
       <div class="time-grid">
         <div class="time-box">
           <label>Début</label>
-          <input type="datetime-local" value="${t.startAt||''}" onchange="setTaskTime('${t.id}','startAt',this.value)">
+          <input type="time" value="${toHM(t.startAt)}" onchange="setTaskTime('${t.id}','startAt',this.value)">
           <button class="now-btn" onclick="setTaskTime('${t.id}','startAt',nowLocal())">Commencer maintenant</button>
         </div>
         <div class="time-box">
           <label>Fin</label>
-          <input type="datetime-local" value="${t.endAt||''}" onchange="setTaskTime('${t.id}','endAt',this.value)">
+          <input type="time" value="${toHM(t.endAt)}" onchange="setTaskTime('${t.id}','endAt',this.value)">
           <button class="now-btn" onclick="setTaskTime('${t.id}','endAt',nowLocal())">Terminer maintenant</button>
         </div>
       </div>
