@@ -133,6 +133,11 @@
   .status-opt.selected.fait{border-color:var(--sage);background:var(--sage-tint);color:var(--sage);}
   .status-opt.selected.valide{border-color:var(--teal);background:var(--teal-tint);color:var(--teal-dark);}
 
+  .photo-item{display:flex;flex-direction:column;align-items:center;width:74px;}
+  .photo-date{font-size:10px;color:var(--ink-soft);text-align:center;margin-top:3px;line-height:1.25;}
+  .saved-ok{font-size:13px;color:var(--sage);font-weight:700;padding:8px 0;}
+  .now-btn.save-btn{background:var(--teal);color:#fff;}
+  .now-btn.save-btn:active{background:var(--teal-dark);}
   .time-grid{display:grid;grid-template-columns:1fr;gap:10px;margin-top:6px;}
   .time-box{min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px;}
   .time-box label{display:block;font-size:11.5px;color:var(--ink-soft);font-weight:600;margin-bottom:6px;}
@@ -221,6 +226,30 @@ function timesPill(t){
   if(!t.startAt && !t.endAt) return '';
   const d = fmtDuration(t.startAt,t.endAt);
   return `<span class="pill">🕒 ${t.startAt?fmtHM(t.startAt):'…'} → ${t.endAt?fmtHM(t.endAt):'…'}${d?' · '+d:''}</span>`;
+}
+function timeBox(t, field, label, nowLabel, isAdmin){
+  const v = t[field];
+  if(isAdmin){
+    return `<div class="time-box"><label>${label}</label>
+      <input type="time" value="${toHM(v)}" onchange="setTaskTime('${t.id}','${field}',this.value)">
+      <button class="now-btn" onclick="setTaskTime('${t.id}','${field}',nowLocal())">${nowLabel}</button></div>`;
+  }
+  if(v){
+    return `<div class="time-box"><label>${label}</label><div class="saved-ok">✓ Heure enregistrée</div></div>`;
+  }
+  const inId = 'tin_'+field+'_'+t.id;
+  return `<div class="time-box"><label>${label}</label>
+    <input id="${inId}" type="time">
+    <button class="now-btn save-btn" onclick="const x=document.getElementById('${inId}').value; if(!x){alert('Choisissez une heure.');return;} setTaskTime('${t.id}','${field}',x)">Enregistrer cette heure</button>
+    <button class="now-btn" onclick="setTaskTime('${t.id}','${field}',nowLocal())">${nowLabel}</button></div>`;
+}
+function photoList(t, key, isAdmin){
+  const dates = t[key+'At']||[];
+  return (t[key]||[]).map((src,i)=>{
+    const d = dates[i];
+    const label = isAdmin && d ? `<div class="photo-date">${new Date(d).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})}<br>${new Date(d).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</div>` : '';
+    return `<div class="photo-item"><img class="photo-thumb" src="${src}">${label}</div>`;
+  }).join('');
 }
 async function setTaskTime(taskId, field, value){
   const t = S.tasks.find(x=>x.id===taskId);
@@ -527,7 +556,6 @@ function renderProvider(){
           </div>
           <span class="badge ${t.status}">${t.status==='valide'?'Validé':t.status==='fait'?'Fait':'À faire'}</span>
         </div>
-        ${timesPill(t) ? `<div class="card-meta">${timesPill(t)}</div>` : ''}
       </div>
     `).join('')}
   </div>
@@ -581,7 +609,10 @@ async function handlePhotoInput(taskId, kind, inputEl){
   const t = S.tasks.find(x=>x.id===taskId);
   const key = kind==='before' ? 'photosBefore' : 'photosAfter';
   const arr = [...(t[key]||[]), dataUrl];
-  await updateTask(taskId, {[key]: arr});
+  const dates = [...(t[key+'At']||[])];
+  while(dates.length < arr.length-1) dates.push('');
+  dates.push(new Date().toISOString());
+  await updateTask(taskId, {[key]: arr, [key+'At']: dates});
   render();
 }
 
@@ -670,18 +701,10 @@ function modalTaskDetail(id){
       ${t.notes ? `<div class="detail-label">Notes</div><div class="detail-text">${t.notes}</div>` : ''}
       <div class="detail-label">Horaires de la prestation</div>
       <div class="time-grid">
-        <div class="time-box">
-          <label>Début</label>
-          <input type="time" value="${toHM(t.startAt)}" onchange="setTaskTime('${t.id}','startAt',this.value)">
-          <button class="now-btn" onclick="setTaskTime('${t.id}','startAt',nowLocal())">Commencer maintenant</button>
-        </div>
-        <div class="time-box">
-          <label>Fin</label>
-          <input type="time" value="${toHM(t.endAt)}" onchange="setTaskTime('${t.id}','endAt',this.value)">
-          <button class="now-btn" onclick="setTaskTime('${t.id}','endAt',nowLocal())">Terminer maintenant</button>
-        </div>
+        ${timeBox(t,'startAt','Début','Commencer maintenant',isAdmin)}
+        ${timeBox(t,'endAt','Fin','Terminer maintenant',isAdmin)}
       </div>
-      ${fmtDuration(t.startAt,t.endAt) ? `<div class="duration">Durée : ${fmtDuration(t.startAt,t.endAt)}</div>` : ''}
+      ${isAdmin && fmtDuration(t.startAt,t.endAt) ? `<div class="duration">Durée : ${fmtDuration(t.startAt,t.endAt)}</div>` : ''}
       <div class="detail-label">Statut</div>
       <div class="status-toggle">
         <button class="status-opt a_faire ${t.status==='a_faire'?'selected':''}" onclick="updateTask('${t.id}',{status:'a_faire'})">À faire</button>
@@ -689,16 +712,16 @@ function modalTaskDetail(id){
         ${isAdmin ? `<button class="status-opt valide ${t.status==='valide'?'selected':''}" onclick="updateTask('${t.id}',{status:'valide', validatedAt:new Date().toISOString()})">Validé</button>` : ''}
       </div>
       ${!isAdmin && t.status==='fait' ? `<div class="hint">En attente de validation par l'administrateur.</div>` : ''}
-      ${t.completedAt ? `<div class="detail-text" style="margin-top:6px;color:var(--ink-soft);">Marqué fait le ${new Date(t.completedAt).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} à ${new Date(t.completedAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</div>` : ''}
-      ${t.status==='valide' && t.validatedAt ? `<div class="detail-text" style="color:var(--teal-dark);font-weight:600;">✓ Validé le ${new Date(t.validatedAt).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} à ${new Date(t.validatedAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</div>` : ''}
+      ${isAdmin && t.completedAt ? `<div class="detail-text" style="margin-top:6px;color:var(--ink-soft);">Marqué fait le ${new Date(t.completedAt).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} à ${new Date(t.completedAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</div>` : ''}
+      ${isAdmin && t.status==='valide' && t.validatedAt ? `<div class="detail-text" style="color:var(--teal-dark);font-weight:600;">✓ Validé le ${new Date(t.validatedAt).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} à ${new Date(t.validatedAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</div>` : ''}
       <div class="detail-label">Photos avant</div>
       <div class="photo-row">
-        ${(t.photosBefore||[]).map(src=>`<img class="photo-thumb" src="${src}">`).join('')}
+        ${photoList(t,'photosBefore',isAdmin)}
         <label class="photo-add">＋<input type="file" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoInput('${t.id}','before',this)"></label>
       </div>
       <div class="detail-label">Photos après</div>
       <div class="photo-row">
-        ${(t.photosAfter||[]).map(src=>`<img class="photo-thumb" src="${src}">`).join('')}
+        ${photoList(t,'photosAfter',isAdmin)}
         <label class="photo-add">＋<input type="file" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoInput('${t.id}','after',this)"></label>
       </div>
       ${waNumber ? `<button class="wa-btn" onclick="window.open('https://wa.me/${waNumber}','_blank')">Envoyer une vidéo par WhatsApp</button>` : ''}
