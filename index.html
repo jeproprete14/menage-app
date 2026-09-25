@@ -338,6 +338,9 @@ async function startApp(){
     firebase.initializeApp(firebaseConfig);
     await firebase.auth().signInAnonymously();
     db = firebase.firestore();
+    firebase.auth().onAuthStateChanged(user=>{
+      if(!user){ firebase.auth().signInAnonymously().catch(e=>console.error('Reconnexion échouée:', e)); }
+    });
     await maybeSeedProperties();
     initFirestoreListeners();
   }catch(e){
@@ -391,15 +394,32 @@ function tryProviderLogin(providerId, code){
 function logout(){ S.session=null; S.loginError=''; S.modal=null; render(); }
 
 /* ======================= MUTATIONS (Firestore) ======================= */
-async function addProvider(name, code){ await db.collection('providers').add({name, code, active:true}); }
-async function removeProvider(id){ await db.collection('providers').doc(id).delete(); }
-async function addProperty(name, location, address){ await db.collection('properties').add({name, location, address:address||''}); }
-async function updateProperty(id, patch){ await db.collection('properties').doc(id).update(patch); }
-async function removeProperty(id){ await db.collection('properties').doc(id).delete(); }
-async function addTask(t){ await db.collection('tasks').add({status:'a_faire', photosBefore:[], photosAfter:[], notes:'', ...t}); }
-async function updateTask(id, patch){ await db.collection('tasks').doc(id).update(patch); }
-async function removeTask(id){ await db.collection('tasks').doc(id).delete(); }
-async function setAdminPin(pin, whatsapp){ await db.collection('config').doc('admin').set({pin, whatsapp}); }
+async function ensureAuth(){
+  if(!firebase.auth().currentUser){ await firebase.auth().signInAnonymously(); }
+}
+async function safeWrite(fn){
+  try{
+    await ensureAuth();
+    await fn();
+  }catch(e){
+    console.error("Erreur d'enregistrement:", e);
+    try{ await firebase.auth().signInAnonymously(); await fn(); }
+    catch(e2){
+      console.error('Échec après nouvelle tentative:', e2);
+      alert("Impossible d'enregistrer : problème de connexion. Vérifiez votre connexion internet et réessayez. (" + (e2.code||e2.message||'erreur') + ")");
+      throw e2;
+    }
+  }
+}
+async function addProvider(name, code){ await safeWrite(()=> db.collection('providers').add({name, code, active:true})); }
+async function removeProvider(id){ await safeWrite(()=> db.collection('providers').doc(id).delete()); }
+async function addProperty(name, location, address){ await safeWrite(()=> db.collection('properties').add({name, location, address:address||''})); }
+async function updateProperty(id, patch){ await safeWrite(()=> db.collection('properties').doc(id).update(patch)); }
+async function removeProperty(id){ await safeWrite(()=> db.collection('properties').doc(id).delete()); }
+async function addTask(t){ await safeWrite(()=> db.collection('tasks').add({status:'a_faire', photosBefore:[], photosAfter:[], notes:'', ...t})); }
+async function updateTask(id, patch){ await safeWrite(()=> db.collection('tasks').doc(id).update(patch)); }
+async function removeTask(id){ await safeWrite(()=> db.collection('tasks').doc(id).delete()); }
+async function setAdminPin(pin, whatsapp){ await safeWrite(()=> db.collection('config').doc('admin').set({pin, whatsapp})); }
 
 /* ======================= RENDER HELPERS ======================= */
 function propName(id){ const p=S.properties.find(x=>x.id===id); return p?p.name:'—'; }
@@ -624,15 +644,21 @@ async function submitEditProperty(id){
 async function handlePhotoInput(taskId, kind, inputEl){
   const file = inputEl.files[0];
   if(!file) return;
-  const dataUrl = await resizeImage(file, 800, 0.5);
-  const t = S.tasks.find(x=>x.id===taskId);
-  const key = kind==='before' ? 'photosBefore' : 'photosAfter';
-  const arr = [...(t[key]||[]), dataUrl];
-  const dates = [...(t[key+'At']||[])];
-  while(dates.length < arr.length-1) dates.push('');
-  dates.push(new Date().toISOString());
-  await updateTask(taskId, {[key]: arr, [key+'At']: dates, [key+'Ts.'+(arr.length-1)]: firebase.firestore.FieldValue.serverTimestamp()});
-  render();
+  try{
+    const dataUrl = await resizeImage(file, 800, 0.5);
+    const t = S.tasks.find(x=>x.id===taskId);
+    const key = kind==='before' ? 'photosBefore' : 'photosAfter';
+    const arr = [...(t[key]||[]), dataUrl];
+    const dates = [...(t[key+'At']||[])];
+    while(dates.length < arr.length-1) dates.push('');
+    dates.push(new Date().toISOString());
+    await updateTask(taskId, {[key]: arr, [key+'At']: dates, [key+'Ts.'+(arr.length-1)]: firebase.firestore.FieldValue.serverTimestamp()});
+  }catch(e){
+    console.error('Erreur ajout photo:', e);
+  }finally{
+    inputEl.value = '';
+    render();
+  }
 }
 
 function renderModal(){
