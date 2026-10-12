@@ -797,7 +797,7 @@ function shMatchProperty(name){
   return p?p.id:'';
 }
 function shPropKey(t){ return t.propertyId || shMatchProperty(t.propertyName) || ('sh:'+shNorm(t.propertyName)); }
-function shRelouee(t){ if(!t.date||t.status==='annule') return false; const k=shPropKey(t); return S.tasks.some(o=>o.id!==t.id && o.status!=='annule' && o.checkinDate===t.date && shPropKey(o)===k); }
+function shRelouee(t){ if(!t.date||t.status==='annule') return false; if(t.relouee) return true; const k=shPropKey(t); return S.tasks.some(o=>o.id!==t.id && o.status!=='annule' && o.checkinDate===t.date && shPropKey(o)===k); }
 function shEsc(s){ return (s==null?'':s).toString().replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 const _shTimesPill = timesPill;
 timesPill = function(t){
@@ -815,7 +815,7 @@ function renderPendingAssign(){
     return '<div class="card" style="border-left:4px solid #f59e0b">'
       +'<div class="card-top"><div>'
       +'<div class="card-title">'+(pid?propName(pid):shEsc(t.propertyName||'Logement inconnu'))+'</div>'
-      +'<div class="card-sub">'+fmtDate(t.date)+' · départ voyageurs</div>'
+      +'<div class="card-sub">'+fmtDate(t.date)+(t.time?' · dès '+t.time:'')+' · départ voyageurs</div>'
       +'</div><span class="badge a_faire">Superhote</span></div>'
       +'<div class="card-meta">'+timesPill(t)+'</div>'
       +(pid?'':'<div class="field" style="margin-top:8px"><label>Logement (non reconnu : '+shEsc(t.propertyName)+')</label><select id="shProp_'+t.id+'"><option value="">Choisir le logement…</option>'+S.properties.map(p=>'<option value="'+p.id+'">'+shEsc(p.name)+'</option>').join('')+'</select></div>')
