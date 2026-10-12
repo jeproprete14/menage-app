@@ -495,7 +495,7 @@ function renderLogin(){
 
 /* ======================= ADMIN TABS ======================= */
 function renderAdminTasks(){
-  const sorted = [...S.tasks].sort((a,b)=> a.date<b.date?-1:1);
+  const sorted = [...S.tasks].filter(t=>t.providerId).sort((a,b)=> a.date<b.date?-1:1);
   return `
   <div class="content">
     <div class="section-title">Tâches</div>
@@ -507,7 +507,7 @@ function renderAdminTasks(){
             <div class="card-title">${propName(t.propertyId)}</div>
             <div class="card-sub">${fmtDate(t.date)} · ${provName(t.providerId)}</div>
           </div>
-          <span class="badge ${t.status}">${t.status==='valide'?'Validé':t.status==='fait'?'Fait':'À faire'}</span>
+          <span class="badge ${t.status}">${t.status==='valide'?'Validé':t.status==='fait'?'Fait':t.status==='annule'?'Annulé':'À faire'}</span>
         </div>
         <div class="card-meta">
           ${timesPill(t)}
@@ -593,7 +593,7 @@ function renderProvider(){
             <div class="card-title">${propName(t.propertyId)}</div>
             <div class="card-sub">${fmtDate(t.date)}${propLoc(t.propertyId)?' · '+propLoc(t.propertyId):''}</div>
           </div>
-          <span class="badge ${t.status}">${t.status==='valide'?'Validé':t.status==='fait'?'Fait':'À faire'}</span>
+          <span class="badge ${t.status}">${t.status==='valide'?'Validé':t.status==='fait'?'Fait':t.status==='annule'?'Annulé':'À faire'}</span>
         </div>
       </div>
     `).join('')}
@@ -787,6 +787,56 @@ function render(){
 
 startApp();
 render();
+
+/* ===== Superhote auto-import : tâches à assigner ===== */
+function shNorm(s){ return (s||'').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,' ').trim(); }
+function shMatchProperty(name){
+  const n=shNorm(name); if(!n) return '';
+  const p=S.properties.find(x=>shNorm(x.superhoteName)===n) || S.properties.find(x=>shNorm(x.name)===n)
+    || S.properties.find(x=>{const m=shNorm(x.name); return m && (n.includes(m)||m.includes(n));});
+  return p?p.id:'';
+}
+function shPropKey(t){ return t.propertyId || shMatchProperty(t.propertyName) || ('sh:'+shNorm(t.propertyName)); }
+function shRelouee(t){ if(!t.date||t.status==='annule') return false; const k=shPropKey(t); return S.tasks.some(o=>o.id!==t.id && o.status!=='annule' && o.checkinDate===t.date && shPropKey(o)===k); }
+function shEsc(s){ return (s==null?'':s).toString().replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+const _shTimesPill = timesPill;
+timesPill = function(t){
+  let x='';
+  if(shRelouee(t)) x+='<span class="pill" style="background:#fde2e2;color:#b42318;font-weight:600">R · Relouée le jour même</span>';
+  if(t.guests) x+='<span class="pill">'+shEsc(t.guests)+' pers.</span>';
+  return x + _shTimesPill(t);
+};
+function renderPendingAssign(){
+  const pend=S.tasks.filter(t=>!t.providerId && t.status!=='annule').sort((a,b)=>a.date<b.date?-1:1);
+  if(!pend.length) return '';
+  const provs=S.providers.filter(p=>p.active!==false);
+  return '<div class="section-title">À assigner ('+pend.length+')</div>' + pend.map(t=>{
+    const pid=t.propertyId||shMatchProperty(t.propertyName);
+    return '<div class="card" style="border-left:4px solid #f59e0b">'
+      +'<div class="card-top"><div>'
+      +'<div class="card-title">'+(pid?propName(pid):shEsc(t.propertyName||'Logement inconnu'))+'</div>'
+      +'<div class="card-sub">'+fmtDate(t.date)+' · départ voyageurs</div>'
+      +'</div><span class="badge a_faire">Superhote</span></div>'
+      +'<div class="card-meta">'+timesPill(t)+'</div>'
+      +(pid?'':'<div class="field" style="margin-top:8px"><label>Logement (non reconnu : '+shEsc(t.propertyName)+')</label><select id="shProp_'+t.id+'"><option value="">Choisir le logement…</option>'+S.properties.map(p=>'<option value="'+p.id+'">'+shEsc(p.name)+'</option>').join('')+'</select></div>')
+      +'<div class="field" style="margin-top:8px"><label>Prestataire</label><select id="shProv_'+t.id+'"><option value="">Choisir…</option>'+provs.map(p=>'<option value="'+p.id+'">'+shEsc(p.name)+'</option>').join('')+'</select></div>'
+      +'<button class="primary-btn" onclick="shAssign(\''+t.id+'\')">Assigner</button>'
+      +'</div>';
+  }).join('') + '<div class="section-title">Tâches assignées</div>';
+}
+async function shAssign(id){
+  const t=S.tasks.find(x=>x.id===id); if(!t) return;
+  const provSel=document.getElementById('shProv_'+id); const propSel=document.getElementById('shProp_'+id);
+  const providerId=provSel?provSel.value:'';
+  const auto=t.propertyId||shMatchProperty(t.propertyName);
+  const propertyId=auto||(propSel?propSel.value:'');
+  if(!propertyId){ alert('Choisissez le logement.'); return; }
+  if(!providerId){ alert('Choisissez un prestataire.'); return; }
+  if(!auto && t.propertyName){ try{ await updateProperty(propertyId,{superhoteName:t.propertyName}); }catch(e){} }
+  await updateTask(id,{providerId, propertyId});
+}
+const _shRenderAdminTasks = renderAdminTasks;
+renderAdminTasks = function(){ return _shRenderAdminTasks().replace('<div class="content">','<div class="content">'+renderPendingAssign()); };
 </script>
 </body>
 </html>
