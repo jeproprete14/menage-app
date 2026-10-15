@@ -563,9 +563,10 @@ function renderAdminSettings(){
   </div>`;
 }
 function renderAdmin(){
-  const tabs = [{id:'tasks',label:'Tâches'},{id:'providers',label:'Prestataires'},{id:'properties',label:'Propriétés'},{id:'settings',label:'Réglages'}];
+  const tabs = [{id:'tasks',label:'Tâches'},{id:'planning',label:'Planning'},{id:'providers',label:'Prestataires'},{id:'properties',label:'Propriétés'},{id:'settings',label:'Réglages'}];
   let body = '';
   if(S.view==='tasks') body = renderAdminTasks();
+  else if(S.view==='planning') body = renderAdminPlanning();
   else if(S.view==='providers') body = renderAdminProviders();
   else if(S.view==='properties') body = renderAdminProperties();
   else body = renderAdminSettings();
@@ -837,6 +838,82 @@ async function shAssign(id){
 }
 const _shRenderAdminTasks = renderAdminTasks;
 renderAdminTasks = function(){ return _shRenderAdminTasks().replace('<div class="content">','<div class="content">'+renderPendingAssign()); };
+
+/* ===== Planning mensuel (admin) ===== */
+(function(){
+  const css = `
+  .pl-wrap{padding:12px 12px 90px}
+  .pl-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 0 6px}
+  .pl-title{font-size:20px;font-weight:700;color:#17324d;text-transform:capitalize}
+  .pl-nav{display:flex;gap:6px}
+  .pl-nav button{border:1px solid #c9d1d9;background:#fff;border-radius:8px;padding:6px 10px;font:inherit;cursor:pointer}
+  .pl-sub{font-size:12px;color:#5d6873;margin-bottom:8px}
+  .pl-legend{display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:#5d6873;margin:0 0 8px}
+  .pl-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+  .pl-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-left:1px solid #c9d1d9;border-top:1px solid #c9d1d9;border-radius:6px;overflow:hidden}
+  .pl-dow{background:#17324d;color:#fff;font-size:11px;font-weight:600;text-align:center;padding:5px 0;border-right:1px solid #17324d}
+  .pl-day{min-height:96px;border-right:1px solid #c9d1d9;border-bottom:1px solid #c9d1d9;padding:4px;background:#fff;min-width:0}
+  .pl-day.we{background:#f8fafb}.pl-day.out{background:#f0f2f4}
+  .pl-day.today{box-shadow:inset 0 0 0 2px #17324d}
+  .pl-num{font-size:12px;font-weight:700;color:#1d2329;margin-bottom:3px}
+  .pl-day.past .pl-num{color:#8a949d}
+  .pl-it{display:block;width:100%;text-align:left;border:0;border-radius:5px;padding:3px 5px;margin-bottom:3px;font:inherit;cursor:pointer;position:relative}
+  .pl-it b{display:block;font-size:11px;color:#1d2329;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:16px}
+  .pl-it span{display:block;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pl-ok{background:#e6f2ef}.pl-ok span{color:#1f6b5e}
+  .pl-todo{background:#fff1d6}.pl-todo span{color:#9a5b00}
+  .pl-done{background:#e4e8ec}.pl-done span{color:#5d6873}
+  .pl-r{position:absolute;top:3px;right:4px;background:#b42318;color:#fff;font-size:9px;font-weight:700;border-radius:3px;padding:0 3px}
+  .pl-list{display:none}
+  .pl-lday{margin:10px 0 4px;font-size:13px;font-weight:700;color:#17324d;text-transform:capitalize}
+  .pl-lday.past{color:#8a949d}
+  .pl-empty{color:#5d6873;font-size:13px;padding:20px 0;text-align:center}
+  @media (max-width:640px){.pl-grid{display:none}.pl-list{display:block}.pl-it b{font-size:13px}.pl-it span{font-size:12px}.pl-it{padding:7px 9px;margin-bottom:6px}}
+  `;
+  const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
+})();
+function plMonthKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+function plShift(n){ const [y,m]=(S.planMonth||plMonthKey(new Date())).split('-').map(Number); S.planMonth=plMonthKey(new Date(y,m-1+n,1)); render(); }
+function plOpen(id){ const t=S.tasks.find(x=>x.id===id); if(t && !t.providerId){ S.view='tasks'; render(); return; } openTaskDetail(id); }
+function plItem(t, today){
+  const pid=t.propertyId||shMatchProperty(t.propertyName);
+  const name=pid?propName(pid):(t.propertyName||'Logement');
+  const done=t.status==='fait'||t.status==='valide';
+  const cls=done?'pl-done':(t.providerId?'pl-ok':'pl-todo');
+  const who=done?('Fait'+(t.providerId?' · '+provName(t.providerId):'')):(t.providerId?provName(t.providerId):'À assigner');
+  const bits=[]; if(t.time) bits.push('dès '+t.time.replace(':00','h')); if(t.guests) bits.push(t.guests+' pers.'); bits.push(who);
+  return '<button class="pl-it '+cls+'" onclick="plOpen(\''+t.id+'\')"><b>'+shEsc(name)+'</b><span>'+shEsc(bits.join(' · '))+'</span>'+(shRelouee(t)?'<em class="pl-r">R</em>':'')+'</button>';
+}
+function renderAdminPlanning(){
+  const key=S.planMonth||plMonthKey(new Date());
+  const [y,m]=key.split('-').map(Number);
+  const now=new Date(); const today=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+  const list=S.tasks.filter(t=>t.date&&t.date.startsWith(key)&&t.status!=='annule').sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
+  const by={}; list.forEach(t=>{(by[t.date]=by[t.date]||[]).push(t);});
+  const nDone=list.filter(t=>t.status==='fait'||t.status==='valide').length;
+  const nTodo=list.filter(t=>!t.providerId&&t.status!=='fait'&&t.status!=='valide').length;
+  const nR=list.filter(t=>shRelouee(t)).length;
+  const monthName=new Date(y,m-1,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  const first=new Date(y,m-1,1); const offset=(first.getDay()+6)%7; const days=new Date(y,m,0).getDate();
+  const cells=Math.ceil((offset+days)/7)*7;
+  let grid=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].map(d=>'<div class="pl-dow">'+d+'</div>').join('');
+  for(let i=0;i<cells;i++){
+    const dnum=i-offset+1; const dow=i%7;
+    if(dnum<1||dnum>days){ grid+='<div class="pl-day out"></div>'; continue; }
+    const ds=key+'-'+String(dnum).padStart(2,'0');
+    const cls=['pl-day']; if(dow>=5) cls.push('we'); if(ds<today) cls.push('past'); if(ds===today) cls.push('today');
+    grid+='<div class="'+cls.join(' ')+'"><div class="pl-num">'+dnum+'</div>'+(by[ds]||[]).map(t=>plItem(t,today)).join('')+'</div>';
+  }
+  const agenda=Object.keys(by).sort().map(ds=>{
+    const lbl=new Date(ds+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+    return '<div class="pl-lday'+(ds<today?' past':'')+'">'+lbl+(ds===today?' · aujourd\'hui':'')+'</div>'+by[ds].map(t=>plItem(t,today)).join('');
+  }).join('') || '<div class="pl-empty">Aucun ménage ce mois-ci.</div>';
+  return '<div class="pl-wrap">'
+    +'<div class="pl-head"><div class="pl-title">'+monthName+'</div><div class="pl-nav"><button onclick="plShift(-1)" aria-label="Mois précédent">‹</button><button onclick="S.planMonth=null;render()">Ce mois</button><button onclick="plShift(1)" aria-label="Mois suivant">›</button></div></div>'
+    +'<div class="pl-sub">'+list.length+' ménage(s) · '+nDone+' fait(s) · '+nTodo+' à assigner · '+nR+' relouée(s) le jour même</div>'
+    +'<div class="pl-legend"><span><i style="background:#e4e8ec"></i>Fait</span><span><i style="background:#e6f2ef"></i>Assigné</span><span><i style="background:#fff1d6"></i>À assigner</span><span><i style="background:#b42318"></i>R = relouée le jour même</span></div>'
+    +'<div class="pl-grid">'+grid+'</div><div class="pl-list">'+agenda+'</div></div>';
+}
 </script>
 </body>
 </html>
