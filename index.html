@@ -563,10 +563,11 @@ function renderAdminSettings(){
   </div>`;
 }
 function renderAdmin(){
-  const tabs = [{id:'tasks',label:'Tâches'},{id:'planning',label:'Planning'},{id:'providers',label:'Prestataires'},{id:'properties',label:'Propriétés'},{id:'settings',label:'Réglages'}];
+  const tabs = [{id:'tasks',label:'Tâches'},{id:'planning',label:'Planning'},{id:'linen',label:'Linge'},{id:'providers',label:'Prestataires'},{id:'properties',label:'Propriétés'},{id:'settings',label:'Réglages'}];
   let body = '';
   if(S.view==='tasks') body = renderAdminTasks();
   else if(S.view==='planning') body = renderAdminPlanning();
+  else if(S.view==='linen') body = renderAdminLinen();
   else if(S.view==='providers') body = renderAdminProviders();
   else if(S.view==='properties') body = renderAdminProperties();
   else body = renderAdminSettings();
@@ -913,6 +914,108 @@ function renderAdminPlanning(){
     +'<div class="pl-sub">'+list.length+' ménage(s) · '+nDone+' fait(s) · '+nTodo+' à assigner · '+nR+' relouée(s) le jour même</div>'
     +'<div class="pl-legend"><span><i style="background:#e4e8ec"></i>Fait</span><span><i style="background:#e6f2ef"></i>Assigné</span><span><i style="background:#fff1d6"></i>À assigner</span><span><i style="background:#b42318"></i>R = relouée le jour même</span></div>'
     +'<div class="pl-grid">'+grid+'</div><div class="pl-list">'+agenda+'</div></div>';
+}
+
+/* ===== Blanchisserie (admin) ===== */
+(function(){
+  const css = `
+  .lg-wrap{padding:12px 12px 90px}
+  .lg-seg{display:flex;gap:4px;background:#eef2f6;border-radius:10px;padding:3px;margin:4px 0 12px}
+  .lg-seg button{flex:1;border:0;background:transparent;border-radius:8px;padding:8px 4px;font:inherit;font-size:13px;color:#3d4852;cursor:pointer}
+  .lg-seg button.on{background:#fff;color:#17324d;font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+  .lg-h{font-size:16px;font-weight:700;color:#17324d;margin:4px 0 2px}
+  .lg-note{font-size:12px;color:#5d6873;margin:0 0 10px}
+  .lg-card{background:#fff;border:1px solid #dfe5ea;border-radius:10px;padding:10px 12px;margin-bottom:8px}
+  .lg-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .lg-t{font-weight:700;font-size:14px;color:#1d2329}
+  .lg-s{font-size:12px;color:#5d6873}
+  .lg-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+  .lg-chip{font-size:11px;background:#eef2f6;color:#17324d;border-radius:999px;padding:2px 8px}
+  .lg-day{font-size:12px;font-weight:700;color:#17324d;text-transform:capitalize;margin:12px 0 6px}
+  .lg-tot{background:#17324d;color:#fff;border-radius:10px;padding:10px 12px;margin-bottom:10px}
+  .lg-tot .lg-chip{background:rgba(255,255,255,.15);color:#fff}
+  .lg-short{color:#b42318;font-weight:700}
+  .lg-st{font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;white-space:nowrap}
+  .lg-st.s0{background:#fde7e4;color:#b42318}.lg-st.s1{background:#fff1d6;color:#9a5b00}.lg-st.s2{background:#e3ecfa;color:#1f4f9a}.lg-st.s3{background:#e6f2ef;color:#1f6b5e}
+  .lg-btn{border:1px solid #c9d1d9;background:#fff;border-radius:8px;padding:6px 10px;font:inherit;font-size:12px;cursor:pointer}
+  .lg-btn.pri{background:#17324d;color:#fff;border-color:#17324d}
+  .lg-form{display:grid;gap:8px}
+  .lg-form label{font-size:12px;color:#5d6873;display:grid;gap:3px}
+  .lg-form input,.lg-form select{font:inherit;font-size:14px;padding:8px;border:1px solid #c9d1d9;border-radius:8px;width:100%;box-sizing:border-box;background:#fff}
+  .lg-qty{display:flex;align-items:center;gap:6px}
+  .lg-qty button{width:32px;height:32px;border:1px solid #c9d1d9;background:#fff;border-radius:8px;font-size:16px;cursor:pointer}
+  .lg-qty b{min-width:34px;text-align:center;font-size:15px}
+  .lg-empty{color:#5d6873;font-size:13px;text-align:center;padding:18px 0}
+  `;
+  const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
+})();
+const LG_ITEMS=[
+  ['parure','Parures de lit (drap housse + housse + taies)'],
+  ['bain','Serviettes de bain'],
+  ['main','Serviettes de main'],
+  ['tapis','Tapis de bain'],
+  ['torchon','Torchons']
+];
+const LG_STATUS=['Récupéré','Au lavage','Lavé','Rangé / livré'];
+function lgInit(){
+  if(S._lgInit) return; S._lgInit=true; S.laundry=S.laundry||[]; S.linenStock=S.linenStock||{};
+  db.collection('laundry').onSnapshot(s=>{ S.laundry=s.docs.map(d=>({id:d.id,...d.data()})); if(S.view==='linen') render(); }, e=>{ S.lgErr='Lecture du linge impossible ('+(e.code||e.message)+')'; render(); });
+  db.collection('linenStock').onSnapshot(s=>{ const o={}; s.docs.forEach(d=>o[d.id]=d.data().qty||0); S.linenStock=o; if(S.view==='linen') render(); }, e=>{ S.lgErr='Lecture du stock impossible ('+(e.code||e.message)+')'; render(); });
+}
+function lgNeed(t){
+  const g=Number(t.guests)||2;
+  return {parure:Math.ceil(g/2), bain:g, main:g, tapis:1, torchon:2};
+}
+function lgSum(list){ const s={}; LG_ITEMS.forEach(([k])=>s[k]=0); list.forEach(t=>{ const n=lgNeed(t); for(const k in n) s[k]+=n[k]; }); return s; }
+function lgChips(n, short){ return LG_ITEMS.map(([k,l])=>'<span class="lg-chip'+(short&&short[k]?' lg-short':'')+'">'+n[k]+' '+shEsc(l.split(' (')[0].toLowerCase())+'</span>').join(''); }
+function lgTab(x){ S.lgTab=x; render(); }
+function lgDays(n){ S.lgDays=n; render(); }
+async function lgStock(k,delta){ const cur=Number(S.linenStock[k]||0); const v=Math.max(0,cur+delta); try{ await db.collection('linenStock').doc(k).set({qty:v}); }catch(e){ alert('Enregistrement impossible : '+(e.code||e.message)); } }
+async function lgStockSet(k){ const el=document.getElementById('lgs_'+k); const v=Math.max(0,parseInt(el.value,10)||0); try{ await db.collection('linenStock').doc(k).set({qty:v}); }catch(e){ alert('Enregistrement impossible : '+(e.code||e.message)); } }
+async function lgAddBag(){
+  const prop=document.getElementById('lgProp').value; const date=document.getElementById('lgDate').value; const pieces=parseInt(document.getElementById('lgPieces').value,10)||0; const note=document.getElementById('lgNote').value.trim();
+  if(!prop||!date){ alert('Choisissez le logement et la date.'); return; }
+  try{ await db.collection('laundry').add({propertyId:prop,date,pieces,note,status:0,createdAt:Date.now()}); S.lgForm=false; render(); }catch(e){ alert('Enregistrement impossible : '+(e.code||e.message)); }
+}
+async function lgNext(id){ const b=S.laundry.find(x=>x.id===id); if(!b) return; const s=Math.min(3,(b.status||0)+1); try{ await db.collection('laundry').doc(id).update({status:s,['t'+s]:Date.now()}); }catch(e){ alert('Enregistrement impossible : '+(e.code||e.message)); } }
+async function lgDel(id){ try{ await db.collection('laundry').doc(id).delete(); }catch(e){ alert('Suppression impossible : '+(e.code||e.message)); } }
+function lgToday(){ const n=new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'); }
+function lgPrep(){
+  const days=S.lgDays||7; const today=lgToday(); const end=new Date(); end.setDate(end.getDate()+days); const endS=end.getFullYear()+'-'+String(end.getMonth()+1).padStart(2,'0')+'-'+String(end.getDate()).padStart(2,'0');
+  const list=S.tasks.filter(t=>t.date>=today&&t.date<=endS&&t.status!=='annule'&&t.status!=='fait'&&t.status!=='valide').sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
+  const tot=lgSum(list); const short={}; LG_ITEMS.forEach(([k])=>{ if(Number(S.linenStock[k]||0)<tot[k]) short[k]=true; });
+  const by={}; list.forEach(t=>(by[t.date]=by[t.date]||[]).push(t));
+  let h='<div class="lg-row" style="margin-bottom:8px"><div class="lg-h">Linge à préparer</div><div style="display:flex;gap:4px">'+[3,7,14].map(n=>'<button class="lg-btn'+(days===n?' pri':'')+'" onclick="lgDays('+n+')">'+n+' j</button>').join('')+'</div></div>';
+  h+='<div class="lg-tot"><div class="lg-row"><b>Total pour '+list.length+' ménage(s) sur '+days+' jours</b></div><div class="lg-chips">'+lgChips(tot)+'</div>'+(Object.keys(short).length?'<div style="margin-top:6px;font-size:12px">Stock propre insuffisant pour : '+LG_ITEMS.filter(([k])=>short[k]).map(([k,l])=>shEsc(l.split(' (')[0].toLowerCase())+' (manque '+(tot[k]-Number(S.linenStock[k]||0))+')').join(', ')+'</div>':'')+'</div>';
+  h+='<p class="lg-note">Calcul par ménage : 1 parure pour 2 personnes, 1 serviette de bain et 1 de main par personne, 1 tapis de bain et 2 torchons. 2 personnes si le nombre est inconnu.</p>';
+  h+=Object.keys(by).map(ds=>'<div class="lg-day">'+new Date(ds+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})+'</div>'+by[ds].map(t=>{ const pid=t.propertyId||shMatchProperty(t.propertyName); return '<div class="lg-card"><div class="lg-row"><span class="lg-t">'+shEsc(pid?propName(pid):(t.propertyName||'Logement'))+'</span><span class="lg-s">'+(t.time?shEsc(t.time.replace(':00','h'))+' · ':'')+(t.guests?shEsc(t.guests)+' pers.':'pers. ?')+'</span></div><div class="lg-chips">'+lgChips(lgNeed(t))+'</div></div>'; }).join('')).join('')||'<div class="lg-empty">Aucun ménage sur cette période.</div>';
+  return h;
+}
+function lgBags(){
+  const props=[...S.properties].sort((a,b)=>a.name.localeCompare(b.name));
+  let h='<div class="lg-row" style="margin-bottom:8px"><div class="lg-h">Sacs de linge sale</div><button class="lg-btn pri" onclick="S.lgForm=!S.lgForm;render()">'+(S.lgForm?'Fermer':'+ Nouveau sac')+'</button></div>';
+  if(S.lgForm){ h+='<div class="lg-card lg-form"><label>Logement<select id="lgProp"><option value="">Choisir…</option>'+props.map(p=>'<option value="'+p.id+'">'+shEsc(p.name)+'</option>').join('')+'</select></label><label>Date de récupération<input type="date" id="lgDate" value="'+lgToday()+'"></label><label>Nombre de pièces (environ)<input type="number" id="lgPieces" min="0" inputmode="numeric" placeholder="ex. 12"></label><label>Note<input type="text" id="lgNote" placeholder="ex. tache sur une housse"></label><button class="lg-btn pri" onclick="lgAddBag()">Enregistrer le sac</button></div>'; }
+  const bags=[...(S.laundry||[])].sort((a,b)=>(a.status||0)-(b.status||0)||String(b.date).localeCompare(String(a.date)));
+  const open=bags.filter(b=>(b.status||0)<3), done=bags.filter(b=>(b.status||0)>=3).slice(0,10);
+  const card=b=>{ const s=b.status||0; return '<div class="lg-card"><div class="lg-row"><span class="lg-t">'+shEsc(propName(b.propertyId))+'</span><span class="lg-st s'+s+'">'+LG_STATUS[s]+'</span></div><div class="lg-s">Récupéré le '+shEsc(fmtDate(b.date))+(b.pieces?' · '+shEsc(b.pieces)+' pièces':'')+(b.note?' · '+shEsc(b.note):'')+'</div><div class="lg-row" style="margin-top:8px;justify-content:flex-end;gap:6px">'+(s<3?'<button class="lg-btn pri" onclick="lgNext(\''+b.id+'\')">Passer à « '+LG_STATUS[s+1]+' »</button>':'')+'<button class="lg-btn" onclick="lgDel(\''+b.id+'\')">Supprimer</button></div></div>'; };
+  const counts=[0,1,2].map(i=>open.filter(b=>(b.status||0)===i).length);
+  h+='<p class="lg-note">'+counts[0]+' récupéré(s) · '+counts[1]+' au lavage · '+counts[2]+' lavé(s) à ranger</p>';
+  h+=open.map(card).join('')||'<div class="lg-empty">Aucun sac en cours.</div>';
+  if(done.length) h+='<div class="lg-day">Derniers sacs terminés</div>'+done.map(card).join('');
+  return h;
+}
+function lgStockView(){
+  const need=lgSum(S.tasks.filter(t=>{ const d=new Date(); d.setDate(d.getDate()+7); const e=d.toISOString().slice(0,10); return t.date>=lgToday()&&t.date<=e&&!['annule','fait','valide'].includes(t.status); }));
+  let h='<div class="lg-h">Stock de linge propre</div><p class="lg-note">Ajuste avec + et −, ou tape le nombre. À droite, le besoin des 7 prochains jours.</p>';
+  h+=LG_ITEMS.map(([k,l])=>{ const q=Number(S.linenStock[k]||0); const ok=q>=need[k]; return '<div class="lg-card"><div class="lg-row"><div><div class="lg-t">'+shEsc(l)+'</div><div class="lg-s'+(ok?'':' lg-short')+'">Besoin 7 j : '+need[k]+(ok?'':' · manque '+(need[k]-q))+'</div></div><div class="lg-qty"><button onclick="lgStock(\''+k+'\',-1)" aria-label="Retirer">−</button><input id="lgs_'+k+'" type="number" min="0" inputmode="numeric" value="'+q+'" onchange="lgStockSet(\''+k+'\')" style="width:56px;text-align:center;font:inherit;padding:6px;border:1px solid #c9d1d9;border-radius:8px"><button onclick="lgStock(\''+k+'\',1)" aria-label="Ajouter">+</button></div></div></div>'; }).join('');
+  return h;
+}
+function renderAdminLinen(){
+  lgInit();
+  const tab=S.lgTab||'prep';
+  const seg='<div class="lg-seg">'+[['prep','À préparer'],['bags','Linge sale'],['stock','Stock']].map(([k,l])=>'<button class="'+(tab===k?'on':'')+'" onclick="lgTab(\''+k+'\')">'+l+'</button>').join('')+'</div>';
+  const body=tab==='bags'?lgBags():tab==='stock'?lgStockView():lgPrep();
+  return '<div class="lg-wrap">'+seg+(S.lgErr?'<div class="lg-card lg-short">'+shEsc(S.lgErr)+'</div>':'')+body+'</div>';
 }
 </script>
 </body>
