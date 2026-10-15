@@ -963,11 +963,12 @@ function lgInit(){
   db.collection('linenStock').onSnapshot(s=>{ const o={}; s.docs.forEach(d=>o[d.id]=d.data().qty||0); S.linenStock=o; if(S.view==='linen') render(); }, e=>{ S.lgErr='Lecture du stock impossible ('+(e.code||e.message)+')'; render(); });
 }
 function lgNeed(t){
+  const _pid=t.propertyId||shMatchProperty(t.propertyName); const _p=S.properties.find(p=>p.id===_pid); if(_p&&_p.noLinen) return {parure:0,bain:0,main:0,tapis:0,torchon:0};
   const g=Number(t.guests)||2;
   return {parure:Math.ceil(g/2), bain:g, main:g, tapis:1, torchon:2};
 }
 function lgSum(list){ const s={}; LG_ITEMS.forEach(([k])=>s[k]=0); list.forEach(t=>{ const n=lgNeed(t); for(const k in n) s[k]+=n[k]; }); return s; }
-function lgChips(n, short){ return LG_ITEMS.map(([k,l])=>'<span class="lg-chip'+(short&&short[k]?' lg-short':'')+'">'+n[k]+' '+shEsc(l.split(' (')[0].toLowerCase())+'</span>').join(''); }
+function lgChips(n, short){ if(LG_ITEMS.every(([k])=>!n[k])) return '<span class="lg-chip">Pas de linge pour ce logement</span>'; return LG_ITEMS.map(([k,l])=>'<span class="lg-chip'+(short&&short[k]?' lg-short':'')+'">'+n[k]+' '+shEsc(l.split(' (')[0].toLowerCase())+'</span>').join(''); }
 function lgTab(x){ S.lgTab=x; render(); }
 function lgDays(n){ S.lgDays=n; render(); }
 async function lgStock(k,delta){ const cur=Number(S.linenStock[k]||0); const v=Math.max(0,cur+delta); try{ await db.collection('linenStock').doc(k).set({qty:v}); }catch(e){ alert('Enregistrement impossible : '+(e.code||e.message)); } }
