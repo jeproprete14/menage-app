@@ -494,13 +494,25 @@ function renderLogin(){
 }
 
 /* ======================= ADMIN TABS ======================= */
+function taskSections(list, card){
+  const isDone=t=>t.status==='fait'||t.status==='valide';
+  const todo=list.filter(t=>!isDone(t)&&t.status!=='annule').sort((a,b)=>a.date<b.date?-1:1);
+  const done=list.filter(isDone).sort((a,b)=>a.date<b.date?1:-1);
+  const canc=list.filter(t=>t.status==='annule').sort((a,b)=>a.date<b.date?1:-1);
+  const cnt=n=>'<span style="opacity:.55;font-weight:500"> ('+n+')</span>';
+  let html='<div class="section-title" style="margin-top:14px;font-size:17px">🧹 À faire'+cnt(todo.length)+'</div>';
+  html+= todo.length ? todo.map(card).join('') : '<div class="empty-state">Rien à faire pour le moment.</div>';
+  html+='<details '+(window.__doneOpen?'open':'')+' ontoggle="window.__doneOpen=this.open" style="margin-top:22px"><summary class="section-title" style="cursor:pointer;font-size:17px">✅ Effectuées'+cnt(done.length)+' <span style="font-size:12px;opacity:.55;font-weight:500">— toucher pour afficher</span></summary>'+done.map(card).join('')+'</details>';
+  if(canc.length) html+='<details '+(window.__cancOpen?'open':'')+' ontoggle="window.__cancOpen=this.open" style="margin-top:16px"><summary class="section-title" style="cursor:pointer;font-size:17px">❌ Annulées'+cnt(canc.length)+'</summary>'+canc.map(card).join('')+'</details>';
+  return html;
+}
 function renderAdminTasks(){
   const sorted = [...S.tasks].filter(t=>t.providerId).sort((a,b)=> a.date<b.date?-1:1);
   return `
   <div class="content">
     <div class="section-title">Tâches</div>
     ${sorted.length===0 ? `<div class="empty-state">Aucune tâche pour l'instant.<br>Touchez le bouton + pour en créer une.</div>` : ''}
-    ${sorted.map(t=>`
+    ${taskSections(sorted, t=>`
       <div class="card" onclick="openTaskDetail('${t.id}')">
         <div class="card-top">
           <div>
@@ -515,7 +527,7 @@ function renderAdminTasks(){
           ${t.photosAfter?.length ? `<span class="pill">${t.photosAfter.length} photo(s) après</span>`:''}
         </div>
       </div>
-    `).join('')}
+    `)}
   </div>
   <button class="fab" onclick="openNewTask()">+</button>`;
 }
@@ -588,7 +600,7 @@ function renderProvider(){
   <div class="content">
     <div class="section-title">Bonjour, ${S.session.name}</div>
     ${mine.length===0 ? `<div class="empty-state">Aucune tâche ne vous est assignée pour le moment.</div>` : ''}
-    ${mine.map(t=>`
+    ${taskSections(mine, t=>`
       <div class="card" onclick="openTaskDetail('${t.id}')">
         <div class="card-top">
           <div>
@@ -598,7 +610,7 @@ function renderProvider(){
           <span class="badge ${t.status}">${t.status==='valide'?'Validé':t.status==='fait'?'Fait':t.status==='annule'?'Annulé':'À faire'}</span>
         </div>
       </div>
-    `).join('')}
+    `)}
   </div>
   ${S.modal ? renderModal() : ''}`;
 }
