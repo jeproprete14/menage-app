@@ -494,16 +494,17 @@ function renderLogin(){
 }
 
 /* ======================= ADMIN TABS ======================= */
+function setTaskTab(k){ window.__taskTab=k; render(); }
 function taskSections(list, card){
   const isDone=t=>t.status==='fait'||t.status==='valide';
   const todo=list.filter(t=>!isDone(t)&&t.status!=='annule').sort((a,b)=>a.date<b.date?-1:1);
   const done=list.filter(isDone).sort((a,b)=>a.date<b.date?1:-1);
   const canc=list.filter(t=>t.status==='annule').sort((a,b)=>a.date<b.date?1:-1);
-  const cnt=n=>'<span style="opacity:.55;font-weight:500"> ('+n+')</span>';
-  let html='<div class="section-title" style="margin-top:14px;font-size:17px">🧹 À faire'+cnt(todo.length)+'</div>';
-  html+= todo.length ? todo.map(card).join('') : '<div class="empty-state">Rien à faire pour le moment.</div>';
-  html+='<details '+(window.__doneOpen?'open':'')+' ontoggle="window.__doneOpen=this.open" style="margin-top:22px"><summary class="section-title" style="cursor:pointer;font-size:17px">✅ Effectuées'+cnt(done.length)+' <span style="font-size:12px;opacity:.55;font-weight:500">— toucher pour afficher</span></summary>'+done.map(card).join('')+'</details>';
-  if(canc.length) html+='<details '+(window.__cancOpen?'open':'')+' ontoggle="window.__cancOpen=this.open" style="margin-top:16px"><summary class="section-title" style="cursor:pointer;font-size:17px">❌ Annulées'+cnt(canc.length)+'</summary>'+canc.map(card).join('')+'</details>';
+  let tab=window.__taskTab||'todo'; if(tab==='canc'&&!canc.length) tab='todo';
+  const btn=(k,label,n)=>'<button onclick="setTaskTab(\''+k+'\')" style="flex:1;padding:10px 4px;border:0;border-radius:10px;font-weight:600;font-size:14px;cursor:pointer;'+(tab===k?'background:#1F5560;color:#fff':'background:transparent;color:#5E6C6C')+'">'+label+' ('+n+')</button>';
+  let html='<div style="display:flex;gap:4px;background:#fff;border:1px solid #E6DCCB;border-radius:12px;padding:4px;margin:6px 0 14px">'+btn('todo','🧹 À faire',todo.length)+btn('done','✅ Terminées',done.length)+(canc.length?btn('canc','❌ Annulées',canc.length):'')+'</div>';
+  const cur= tab==='done'?done : tab==='canc'?canc : todo;
+  html+= cur.length ? cur.map(card).join('') : '<div class="empty-state">'+(tab==='done'?'Aucune tâche terminée pour le moment.':'Rien à faire pour le moment.')+'</div>';
   return html;
 }
 function renderAdminTasks(){
