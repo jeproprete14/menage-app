@@ -1027,10 +1027,74 @@ function lgStockView(){
 function renderAdminLinen(){
   lgInit();
   const tab=S.lgTab||'prep';
-  const seg='<div class="lg-seg">'+[['prep','À préparer'],['bags','Linge sale'],['stock','Stock']].map(([k,l])=>'<button class="'+(tab===k?'on':'')+'" onclick="lgTab(\''+k+'\')">'+l+'</button>').join('')+'</div>';
-  const body=tab==='bags'?lgBags():tab==='stock'?lgStockView():lgPrep();
+  const seg='<div class="lg-seg">'+[['prep','À préparer'],['jobs','Blanchisserie'],['bags','Linge sale'],['stock','Stock']].map(([k,l])=>'<button class="'+(tab===k?'on':'')+'" onclick="lgTab(\''+k+'\')">'+l+'</button>').join('')+'</div>';
+  ljInit(); const body=tab==='jobs'?ljAdmin():tab==='bags'?lgBags():tab==='stock'?lgStockView():lgPrep();
   return '<div class="lg-wrap">'+seg+(S.lgErr?'<div class="lg-card lg-short">'+shEsc(S.lgErr)+'</div>':'')+body+'</div>';
 }
+
+/* ===== Blanchisserie : missions linge assignées aux prestataires ===== */
+function ljInit(){
+  if(S._ljInit) return; S._ljInit=true; S.linenJobs=S.linenJobs||[];
+  db.collection('linenJobs').onSnapshot(s=>{ S.linenJobs=s.docs.map(d=>({id:d.id,...d.data()})); if(!S.modal && (S.view==='linen' || (S.session && S.session.role!=='admin'))) render(); }, e=>{ S.lgErr='Lecture blanchisserie impossible ('+(e.code||e.message)+')'; });
+}
+function ljAddDays(ds,n){ const d=new Date(ds+'T12:00:00'); d.setDate(d.getDate()+n); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function ljFmt(ds){ return new Date(ds+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'}); }
+function ljRange(from,to){ return S.tasks.filter(t=>t.date>=from && t.date<=to && t.status!=='annule' && t.status!=='fait' && t.status!=='valide').sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||''))); }
+function ljTaskName(t){ const pid=t.propertyId||shMatchProperty(t.propertyName); return pid?propName(pid):(t.propertyName||'Logement'); }
+const LJ_IN='padding:10px;border:1px solid #E6DCCB;border-radius:10px;font-size:15px;width:100%;box-sizing:border-box;background:#fff;font-family:inherit';
+function ljCard(j, admin){
+  const done=j.status==='fait';
+  let h='<div class="lg-card"'+(done?' style="opacity:.75"':'')+'><div class="lg-row"><span class="lg-t">🧺 Du '+shEsc(ljFmt(j.from))+' au '+shEsc(ljFmt(j.to))+'</span><span class="lg-s">'+(admin?shEsc(provName(j.providerId))+' · ':'')+(done?'✅ Terminé':'À faire')+'</span></div>';
+  h+='<div class="lg-chips">'+lgChips(j.items||{})+'</div>';
+  if(j.note) h+='<p class="lg-note">'+shEsc(j.note)+'</p>';
+  const det=j.details||[];
+  h+='<details style="margin-top:8px"><summary class="lg-s" style="cursor:pointer">Détail par logement ('+det.length+')</summary>'+det.map(d=>'<div style="margin-top:8px"><b>'+shEsc(ljFmt(d.date))+'</b> · '+shEsc(d.name)+(d.guests?' · '+shEsc(d.guests)+' pers.':'')+'<div class="lg-chips">'+lgChips(d.need||{})+'</div></div>').join('')+'</details>';
+  h+='<div style="display:flex;gap:8px;margin-top:10px">';
+  if(!done) h+='<button class="lg-btn pri" style="flex:1" onclick="ljSetStatus(\''+j.id+'\',\'fait\')">✅ Marquer terminé</button>';
+  else if(admin) h+='<button class="lg-btn" style="flex:1" onclick="ljSetStatus(\''+j.id+'\',\'a_faire\')">Remettre à faire</button>';
+  if(admin) h+='<button class="lg-btn" onclick="ljDelete(\''+j.id+'\')">Supprimer</button>';
+  return h+'</div></div>';
+}
+function ljAdmin(){
+  const today=lgToday(); const from=S.ljFrom||today; const to=S.ljTo||ljAddDays(today,2);
+  const list=ljRange(from,to); const tot=lgSum(list);
+  const provs=[...S.providers].sort((a,b)=>a.name.localeCompare(b.name));
+  let h='<div class="lg-card"><div class="lg-h">Assigner la blanchisserie</div><p class="lg-note">Choisis la période des rotations : l\'appli calcule le linge nécessaire, puis assigne-le à une presta.</p>';
+  h+='<div style="display:flex;gap:8px;margin-top:8px"><label style="flex:1;font-size:13px">Du<input type="date" value="'+from+'" onchange="S.ljFrom=this.value;render()" style="'+LJ_IN+'"></label><label style="flex:1;font-size:13px">Au<input type="date" value="'+to+'" onchange="S.ljTo=this.value;render()" style="'+LJ_IN+'"></label></div>';
+  if(!list.length) h+='<div class="lg-empty" style="margin:10px 0">Aucun ménage sur cette période.</div>';
+  else {
+    h+='<div class="lg-s" style="margin:12px 0 4px">Total pour '+list.length+' ménage(s) :</div><div class="lg-chips">'+lgChips(tot)+'</div>';
+    h+='<details style="margin-top:6px"><summary class="lg-s" style="cursor:pointer">Voir les rotations</summary>'+list.map(t=>'<div style="margin-top:6px">'+shEsc(ljFmt(t.date))+' · '+shEsc(ljTaskName(t))+(t.guests?' · '+shEsc(t.guests)+' pers.':'')+'</div>').join('')+'</details>';
+  }
+  h+='<label style="display:block;font-size:13px;margin-top:10px">Prestataire<select id="ljProv" style="'+LJ_IN+'"><option value="">Choisir…</option>'+provs.map(p=>'<option value="'+p.id+'">'+shEsc(p.name)+'</option>').join('')+'</select></label>';
+  h+='<textarea id="ljNote" placeholder="Note pour la presta (facultatif)" style="'+LJ_IN+';margin-top:8px;min-height:60px"></textarea>';
+  h+='<button class="lg-btn pri" style="width:100%;margin-top:10px;padding:12px" onclick="ljCreate()"'+(list.length?'':' disabled')+'>🧺 Assigner la blanchisserie</button></div>';
+  const jobs=[...(S.linenJobs||[])];
+  const todo=jobs.filter(j=>j.status!=='fait').sort((a,b)=>a.from.localeCompare(b.from));
+  const done=jobs.filter(j=>j.status==='fait').sort((a,b)=>b.from.localeCompare(a.from));
+  h+='<div class="lg-h" style="margin-top:18px">En cours ('+todo.length+')</div>'+(todo.map(j=>ljCard(j,true)).join('')||'<div class="lg-empty">Aucune blanchisserie en cours.</div>');
+  if(done.length) h+='<details style="margin-top:14px"><summary class="lg-h" style="cursor:pointer">Terminées ('+done.length+')</summary>'+done.map(j=>ljCard(j,true)).join('')+'</details>';
+  return h;
+}
+async function ljCreate(){
+  const prov=document.getElementById('ljProv').value; const note=(document.getElementById('ljNote').value||'').trim();
+  if(!prov){ alert('Choisis une prestataire.'); return; }
+  const today=lgToday(); const from=S.ljFrom||today; const to=S.ljTo||ljAddDays(today,2);
+  if(to<from){ alert('La date de fin est avant la date de début.'); return; }
+  const list=ljRange(from,to); if(!list.length){ alert('Aucun ménage sur cette période.'); return; }
+  const details=list.map(t=>({date:t.date,time:t.time||'',name:ljTaskName(t),guests:t.guests||null,need:lgNeed(t)}));
+  try{ await db.collection('linenJobs').add({providerId:prov,from,to,items:lgSum(list),details,note,status:'a_faire',createdAt:Date.now()}); alert('Blanchisserie assignée à '+provName(prov)+' ✅'); render(); }
+  catch(e){ alert('Enregistrement impossible : '+(e.code||e.message)); }
+}
+async function ljSetStatus(id,st){ try{ await db.collection('linenJobs').doc(id).update({status:st,doneAt:st==='fait'?Date.now():null}); }catch(e){ alert('Enregistrement impossible : '+(e.code||e.message)); } }
+async function ljDelete(id){ if(!confirm('Supprimer cette blanchisserie ?')) return; try{ await db.collection('linenJobs').doc(id).delete(); }catch(e){ alert('Suppression impossible : '+(e.code||e.message)); } }
+function ljProviderSection(){
+  const me=S.session&&S.session.id; const mine=(S.linenJobs||[]).filter(j=>j.providerId===me && j.status!=='fait').sort((a,b)=>a.from.localeCompare(b.from));
+  if(!mine.length) return '';
+  return '<div class="section-title" style="font-size:17px">🧺 Blanchisserie ('+mine.length+')</div>'+mine.map(j=>ljCard(j,false)).join('');
+}
+const _ljRenderProvider=renderProvider;
+renderProvider=function(){ ljInit(); return _ljRenderProvider().replace('<div class="content">','<div class="content">'+ljProviderSection()); };
 </script>
 </body>
 </html>
