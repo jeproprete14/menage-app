@@ -508,7 +508,7 @@ function taskSections(list, card){
   return html;
 }
 function renderAdminTasks(){
-  const sorted = [...S.tasks].filter(t=>t.providerId).sort((a,b)=> a.date<b.date?-1:1);
+  const sorted = [...S.tasks].filter(t=>t.providerId && !t.archived).sort((a,b)=> a.date<b.date?-1:1);
   return `
   <div class="content">
     <div class="section-title">Tâches</div>
@@ -595,7 +595,7 @@ function renderAdmin(){
 
 /* ======================= PROVIDER VIEW ======================= */
 function renderProvider(){
-  const mine = S.tasks.filter(t=>t.providerId===S.session.id).sort((a,b)=> a.date<b.date?-1:1);
+  const mine = S.tasks.filter(t=>t.providerId===S.session.id && !t.archived).sort((a,b)=> a.date<b.date?-1:1);
   return `
   ${header()}
   <div class="content">
@@ -822,7 +822,7 @@ timesPill = function(t){
   return x + _shTimesPill(t);
 };
 function renderPendingAssign(){
-  const pend=S.tasks.filter(t=>!t.providerId && t.status!=='annule').sort((a,b)=>a.date<b.date?-1:1);
+  const pend=S.tasks.filter(t=>!t.providerId && t.status!=='annule' && !t.archived).sort((a,b)=>a.date<b.date?-1:1);
   if(!pend.length) return '';
   const provs=S.providers.filter(p=>p.active!==false);
   return '<div class="section-title">À assigner ('+pend.length+')</div>' + pend.map(t=>{
