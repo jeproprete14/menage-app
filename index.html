@@ -1145,6 +1145,188 @@ function notifSetupBox(){
 }
 const _ntRenderProvider=renderProvider;
 renderProvider=function(){ return _ntRenderProvider().replace('<div class="content">','<div class="content">'+notifSetupBox()); };
+
+/* ===== Checklists ménage par logement ===== */
+const CL_ENTREE=['Balayer et laver le sol',"Nettoyer la porte d'entrée (intérieur / extérieur)",'Dépoussiérer meubles et décorations','Nettoyer interrupteurs et poignées',"Vérifier l'éclairage",'Vider la poubelle',"Vérifier l'absence d'objets oubliés"];
+const CL_SALON=(x)=>['Aérer la pièce','Dépoussiérer toutes les surfaces',"Nettoyer table basse et tables d'appoint",'Nettoyer télécommande et télévision',...x,'Balayer et laver le sol','Nettoyer vitres et miroirs accessibles','Vérifier rideaux / stores'];
+const CL_BUANDERIE=['Nettoyer machine à laver','Nettoyer sèche-linge et filtre','Vérifier produits ménagers','Nettoyer le sol'];
+const CL_TERRASSE=['Balayer terrasse','Nettoyer mobilier extérieur','Vider cendriers','Vérifier barbecue (si présent)','Ramasser déchets','Contrôler éclairage extérieur'];
+const CL_SDB_REAPPRO=['Papier toilette','Savon','Shampoing','Gel douche'];
+const CL_GENERAL=['Vérifier stock de linge',"Vérifier produits d'accueil"];
+const CL_PDT=(p)=>['#Plans de travail','Désinfecter les plans de travail','Nettoyer crédence','Nettoyer évier et robinetterie',p];
+const CL_TEMPLATES={
+ A:{label:'Joyful / L’Intemporel',s:[
+  ['Entrée',CL_ENTREE],
+  ['Salon',CL_SALON(['Aspirer canapé et fauteuils','Enlever les taches éventuelles','Aspirer tapis'])],
+  ['Cuisine',[...CL_PDT('Désinfecter poignées et boutons'),'#Vaisselle',"Vérifier l'inventaire de la vaisselle",'Laver et ranger toute la vaisselle','Contrôler verres et tasses','Vérifier les ustensiles','#Électroménager','Nettoyer réfrigérateur intérieur et extérieur',"Vérifier qu'aucun aliment n'est laissé",'Nettoyer four','Nettoyer micro-ondes intérieur et extérieur','Nettoyer plaque de cuisson','Nettoyer hotte','Vérifier bouilloire, cafetière, grille-pain','#Sol','Balayer','Laver et désinfecter']],
+  ['Chambre(s)',['#Literie','Retirer le linge sale','Vérifier le matelas','Changer draps, taies et housses','Installer linge propre','Vérifier oreillers et couette','#Mobilier','Dépoussiérer tables de nuit','Dépoussiérer tête de lit','Nettoyer lampes et interrupteurs','Nettoyer poignées de porte','Vérifier placards et cintres','#Sol','Aspirer sous le lit','Aspirer tapis','Laver le sol si nécessaire']],
+  ['Salle de bain',['#Douche / baignoire','Détartrer robinetterie','Nettoyer parois','Nettoyer joints visibles','Nettoyer siphon si nécessaire','#Lavabo','Désinfecter lavabo','Nettoyer miroir','Nettoyer robinetterie','#WC','Désinfecter cuvette intérieure','Nettoyer abattant',"Nettoyer chasse d'eau",'Désinfecter surfaces autour des WC','#Réapprovisionnement','Papier toilette','Savon mains','Gel douche / shampoing','Serviettes propres','Tapis de bain propre','#Sol','Balayer','Laver et désinfecter']],
+  ['Buanderie (si présente)',CL_BUANDERIE],['Terrasse / balcon / jardin',CL_TERRASSE],
+  ['Vitres et finitions',['Nettoyer traces sur vitres','Nettoyer miroirs','Dépoussiérer plinthes','Vérifier angles et coins',"Enlever toiles d'araignée"]],
+  ['Réapprovisionnement',['#Cuisine','Éponge neuve','Liquide vaisselle','Sacs poubelle','Essuie-tout','Capsules café / thé','Sel, poivre (si fourni)','#Salle de bain',...CL_SDB_REAPPRO,'#Général',...CL_GENERAL]],
+  ['Contrôle final',['Vérifier fonctionnement TV et Wi-Fi','Vérifier chauffage / climatisation','Vérifier détecteurs de fumée','Fermer fenêtres','Éteindre lumières inutiles','Prendre photos de contrôle',"Installer mise en scène d'accueil",'Fermer et sécuriser le logement']]]},
+ B:{label:'Les Arcades / Chalet cosy California Park',s:[
+  ['Entrée',CL_ENTREE],
+  ['Salon',CL_SALON(['Aspirer canapé et fauteuils','Enlever les taches éventuelles','Aspirer tapis'])],
+  ['Cuisine',[...CL_PDT('Désinfecter poignées des placards'),'#Vaisselle',"Vérifier l'inventaire de la vaisselle",'Laver et ranger toute la vaisselle',"Contrôler verres et tasses (pas de trace ni d'éclat)",'#Électroménager','Nettoyer réfrigérateur (intérieur et extérieur)','Vérifier et éventuellement nettoyer four','Nettoyer micro-ondes (intérieur et extérieur)','Nettoyer plaque de cuisson','Nettoyer hotte','Vérifier bouilloire, cafetière, grille-pain, etc.','#Sol','Balayer et laver','Vérifier et désinfecter']],
+  ['Chambre(s)',['Refaire le(s) lit(s) (linge propre et repassé)','Vérifier oreillers et housses (installer linge propre)','Vérifier matelas et alèse','Dépoussiérer table de nuit et autres surfaces','Nettoyer lampes et interrupteurs','Nettoyer placards et poignées',"Vérifier propreté et absence d'objets personnels",'#Sol','Aspirer sous les lits','Aspirer tapis','Laver le sol si nécessaire']],
+  ['Salle de bain',['#Douche / baignoire','Nettoyer parois / robinetterie','Détartrer si nécessaire','Nettoyer joints et siphon','Nettoyer plage / sol si nécessaire','#Lavabo','Désinfecter le lavabo','Nettoyer robinetterie','Nettoyer miroir (sans trace)','#WC','Désinfecter intérieur et extérieur','Nettoyer abattant et cuvette','Vérifier présence de papier toilette, réservoir rempli','#Réapprovisionnement','Savon (mains)','Gel douche / shampoing','Serviettes propres (selon le séjour)','#Sol','Balayer','Laver et désinfecter']],
+  ['Buanderie (si présente)',CL_BUANDERIE],['Terrasse / balcon / jardin',CL_TERRASSE],
+  ['Vitres et finitions',['Nettoyer toutes les vitres','Nettoyer miroirs','Dépoussiérer plinthes','Vérifier portes et poignées',"Enlever toiles d'araignée"]],
+  ['Réapprovisionnement',['#Cuisine','Éponge neuve','Liquide vaisselle','Essuie-tout','Sacs poubelle (rouleau)','Pastilles lave-vaisselle','#Salle de bain',...CL_SDB_REAPPRO,'#Général',...CL_GENERAL]],
+  ['Contrôle final',['Vérifier fonctionnement TV et Wi-Fi','Tester eau chaude et pression','Fermer toutes les fenêtres et volets / rideaux',"Installer mise en scène d'accueil (linge, guide, petites attentions)"]]]},
+ C:{label:'Cabourg L’Instant / Le Flore',s:[
+  ['Entrée',CL_ENTREE],
+  ['Salon',CL_SALON(['Aspirer canapé et fauteuils','Balayer les tapis et moquettes','Aspirer angles'])],
+  ['Cuisine',[...CL_PDT('Désinfecter poignées de placards'),'#Vaisselle',"Vérifier l'inventaire de la vaisselle",'Laver et ranger toute la vaisselle','Contrôler verres et tasses (état et nettoyage)','#Électroménager','Nettoyer réfrigérateur (intérieur et extérieur)','Vérifier et éventuellement nettoyer four','Nettoyer micro-ondes (intérieur et extérieur)','Nettoyer plaque de cuisson','Nettoyer hotte (filtres si besoin)','Vérifier bouilloire, cafetière, grille-pain','#Sol','Balayer et laver le sol','Vider le lave-vaisselle']],
+  ['Chambre(s)',['#Literie','Retirer le linge de lit','Vérifier le matelas (taches et propreté des housses)',"Installer linge propre (housse, draps, taies d'oreiller)",'Vérifier alèse','#Mobilier','Dépoussiérer table de nuit','Dépoussiérer tête de lit','Nettoyer placards et rangements','Nettoyer poignées de placards',"Vérifier propreté à l'intérieur",'#Sol','Aspirer sous le lit','Aspirer le sol','Laver le sol si nécessaire']],
+  ['Salle de bain',['#Douche / baignoire','Détartrer robinetterie','Nettoyer parois / vitres','Nettoyer joints et silicone','Nettoyer siphon si nécessaire','#Lavabo','Désinfecter le lavabo','Nettoyer robinetterie','Nettoyer miroir','#WC','Désinfecter cuvette et siège',"Nettoyer chasse d'eau",'Nettoyer abattant','Désinfecter poignée de porte, mur, etc.','#Réapprovisionnement','Papier toilette','Gel douche / shampoing','Sels de bain si approprié','Serviettes propres (jeu de bain, tapis)','#Sol','Balayer','Laver et désinfecter']],
+  ['Buanderie (si présente)',CL_BUANDERIE],['Terrasse / balcon / jardin',CL_TERRASSE],
+  ['Vitres et finitions',['Nettoyer vitres aux endroits fréquemment touchés','Nettoyer miroirs','Dépoussiérer plinthes',"Vérifier l'état des murs","Enlever toiles d'araignée"]],
+  ['Réapprovisionnement',['#Cuisine','Éponges neuves','Liquide vaisselle','Produit multi-usage (surfaces, salle de bain)','Sacs poubelle (suffisant)','#Salle de bain',...CL_SDB_REAPPRO,'#Général','Vérifier stocks de linge',"Vérifier produits d'accueil"]],
+  ['Contrôle final',['Vérifier fonctionnement TV et Wi-Fi','Vérifier électroménager (si applicable)',"Vérifier absence d'odeurs",'Fermer fenêtres','Éteindre les lumières','Régler le chauffage / climatisation',"Installer mise en scène d'accueil (petites attentions si applicable)"]]]},
+ D:{label:'Joli duplex / Charmant duplex',s:[
+  ['Entrée',CL_ENTREE],
+  ['Salon',CL_SALON(['Aspirer canapé et fauteuils','Enlever les taches éventuelles','Redresser coussins'])],
+  ['Cuisine',[...CL_PDT('Désinfecter poignées de placards'),'#Vaisselle',"Vérifier l'inventaire de la vaisselle",'Laver et ranger toute la vaisselle','Contrôler verres et tasses (éclat / trace / fissure)','#Électroménager','Nettoyer réfrigérateur (intérieur et extérieur)',"Vérifier qu'aucun aliment n'est resté",'Nettoyer four (intérieur et extérieur)','Nettoyer micro-ondes','Nettoyer plaques de cuisson','Vérifier bouilloire, cafetière, grille-pain','#Sol','Balayer et laver le sol de la cuisine']],
+  ['Chambre(s)',['Refaire le(s) lit(s)','Vérifier le linge de lit (draps propres, housse, taies)','Installer linge propre (si nécessaire)','Vérifier matelas et oreillers','Dépoussiérer table de nuit','Dépoussiérer meubles et rangements','Nettoyer poignées et interrupteurs','Vérifier placard et penderie',"S'assurer de la propreté du sol",'#Sol','Aspirer toute la pièce','Laver le sol si nécessaire']],
+  ['Salle de bain',['#Douche / baignoire','Nettoyer et désinfecter','Éliminer traces de calcaire','Nettoyer parois, mitigeur et pommeau','Laver le joint si nécessaire','#Lavabo','Désinfecter le lavabo','Nettoyer robinetterie','Nettoyer miroir et retirer les traces','#WC','Désinfecter cuvette et abattant','Nettoyer extérieur du WC','Nettoyer et désinfecter la brosse et le support','#Réapprovisionnement','Replacer serviettes (si incluses)','Vérifier savon / shampoing / gel douche','Sèche-cheveux (propre)','#Sol','Balayer et laver le sol de la salle de bain']],
+  ['Buanderie (si présente)',CL_BUANDERIE],['Terrasse / balcon / jardin',CL_TERRASSE],
+  ['Vitres et finitions',['Nettoyer toutes les vitres','Nettoyer miroirs','Dépoussiérer plinthes et rebords (portes, fenêtres)',"Enlever toiles d'araignée"]],
+  ['Réapprovisionnement',['#Cuisine','Éponges neuves','Liquide vaisselle','Tablettes lave-vaisselle (si applicable)','Essuie-tout (si inclus)','#Salle de bain',...CL_SDB_REAPPRO,'#Général','Vérifier stocks de linge',"Vérifier produits d'accueil"]],
+  ['Contrôle final',['Vérifier fonctionnement TV et Wi-Fi',"S'assurer que tout est propre et en ordre",'Fermer fenêtres et portes (sécurité)',"Installer mise en scène d'accueil (si prévue)"]]]},
+ E:{label:'Chalet 10 / Prairie Verte',s:[
+  ['Entrée',CL_ENTREE],
+  ['Salon',CL_SALON(['Aspirer canapé et fauteuils','Enlever les taches éventuelles','Soigner tapis'])],
+  ['Cuisine',[...CL_PDT('Désinfecter poignées de placards'),'#Vaisselle',"Vérifier l'inventaire de la vaisselle",'Laver et ranger toute la vaisselle','Contrôler verres et tasses (éclats, propreté)','#Électroménager','Nettoyer réfrigérateur (intérieur et extérieur)','Vérifier et (si besoin) vider le micro-ondes','Nettoyer four','Nettoyer plaque de cuisson','Nettoyer hotte et filtres','Nettoyer petits appareils (cafetière, bouilloire, grille-pain…)','Vérifier le lave-linge, cuisinière, sèche-linge','#Sol','Balayer et laver le sol','Vider et désinfecter la poubelle']],
+  ['Chambre(s)',['Refaire le(s) lit(s)','Vérifier le linge de lit (propre et en bon état)','Installer linge propre','Vérifier oreillers et couettes','#Mobilier','Dépoussiérer meubles de nuit','Dépoussiérer tête de lit','Nettoyer placards et rangements','Nettoyer poignées de portes',"Vérifier l'absence d'objets oubliés",'#Sol','Aspirer toute la pièce','Laver le sol si nécessaire']],
+  ['Salle de bain',['#Douche / baignoire','Nettoyer parois / robinetterie','Désinfecter joints','Nettoyer receveur / baignoire','Nettoyer siphon si nécessaire','#Lavabo','Désinfecter le lavabo','Nettoyer robinetterie','Nettoyer miroir et vitres','#WC','Désinfecter cuvette et réservoir','Nettoyer abattant et base','Nettoyer brosse WC','Réapprovisionner en papier toilette','#Réapprovisionnement','Serviettes propres (selon besoins)','Gel douche / shampoing (si présents)','Papier toilette de rechange','Sèche-cheveux (si présent)','#Sol','Balayer et laver le sol','Laver et désinfecter']],
+  ['Buanderie (si présente)',CL_BUANDERIE],['Terrasse / balcon / jardin',CL_TERRASSE],
+  ['Vitres et finitions',['Nettoyer toutes les vitres','Nettoyer miroirs','Dépoussiérer plinthes','Nettoyer portes et poignées',"Enlever toiles d'araignée"]],
+  ['Réapprovisionnement',['#Cuisine','Éponges et nettoyant','Liquide vaisselle','Sacs poubelle','Essuie-tout (si présent)','Sel, poivre, huile (si inclus)','#Salle de bain',...CL_SDB_REAPPRO,'#Général','Vérifier stocks de linge',"Vérifier produits d'accueil"]],
+  ['Contrôle final',['Vérifier fonctionnement TV et Wi-Fi','Tester eau chaude et pression','Vérifier chauffage / climatisation','Fermer toutes les fenêtres','Éteindre toutes les lumières','Verrouiller le logement',"Installer mise en scène d'accueil",'Logement propre, rangé et prêt']]]},
+ F:{label:'Pré Fleuri / Pré des Plages',s:[
+  ['Entrée',CL_ENTREE],
+  ['Salon',CL_SALON(['Aspirer canapé et fauteuils','Enlever les taches éventuelles','Aspirer tapis'])],
+  ['Cuisine',[...CL_PDT('Désinfecter poignées et façades'),'#Vaisselle',"Vérifier l'inventaire",'Laver la vaisselle','La ranger (propre et sèche)','Contrôler verres et tasses','Vérifier état du lave-vaisselle','#Électroménager','Nettoyer réfrigérateur (intérieur et extérieur)','Nettoyer le four (intérieur et extérieur)','Nettoyer micro-ondes (intérieur et extérieur)','Nettoyer plaque de cuisson','Nettoyer hotte','Vérifier bouilloire, cafetière, grille-pain','#Sol','Balayer et laver','Vérifier état du tapis']],
+  ['Chambre(s)',['#Literie','Retirer le linge de lit','Vérifier les alèses','Changer si nécessaire housses (matelas / oreiller / couette)','Installer linge propre',"Vérifier l'état du matelas",'#Mobilier','Dépoussiérer meubles de nuit','Dépoussiérer tête de lit','Nettoyer interrupteurs et poignées','Nettoyer placards et leur intérieur','Vérifier rangement et cintres','#Sol','Aspirer toute la pièce','Balayer et laver le sol',"Vérifier l'état du sol"]],
+  ['Salle de bain',['#Douche / baignoire','Détartrer et désinfecter','Nettoyer parois / vitres','Nettoyer robinetterie','Nettoyer siphon et évacuation','#Lavabo','Désinfecter le lavabo','Nettoyer robinetterie','Nettoyer et essuyer le miroir','#WC',"Désinfecter la cuvette et l'abattant","Nettoyer l'extérieur du WC",'Nettoyer et remplacer le rouleau',"Vérifier produit d'entretien",'#Réapprovisionnement','Savon (mains)','Gel douche / shampoing','Papier toilette (en quantité)','Serviettes propres','Sèche-cheveux (si présent)','#Sol','Balayer','Laver et désinfecter']],
+  ['Buanderie (si présente)',CL_BUANDERIE],['Terrasse / balcon / jardin',CL_TERRASSE],
+  ['Vitres et finitions',['Nettoyer toutes les vitres','Nettoyer miroirs','Dépoussiérer plinthes','Vérifier et nettoyer portes',"Enlever toiles d'araignée"]],
+  ['Réapprovisionnement',['#Cuisine','Éponges neuves','Liquide vaisselle','Produits ménagers','Sacs poubelle','Essuie-tout / film / alu','Ampoules (si besoin)','#Salle de bain',...CL_SDB_REAPPRO,'#Général','Vérifier le stock de linge',"Vérifier produits d'accueil"]],
+  ['Contrôle final',['Vérifier fonctionnement TV et Wi-Fi',"Tester l'eau chaude et la pression",'Fermer toutes les portes','Éteindre les lumières',"Installer mise en scène d'accueil",'Vérifier propreté et confort global']]]},
+ G:{label:'Champ des Mouettes / Maison Blonville',s:[
+  ['Entrée',CL_ENTREE],
+  ['Salon',CL_SALON(['Aspirer canapé et fauteuils','Enlever les taches éventuelles','Soigner tapis'])],
+  ['Cuisine',[...CL_PDT('Désinfecter poignées de placards'),'#Vaisselle',"Vérifier l'inventaire de la vaisselle",'Laver et ranger toute la vaisselle','Contrôler verres et tasses','Vérifier état et propreté','#Électroménager','Nettoyer réfrigérateur (intérieur et extérieur)',"Vérifier et nettoyer l'intérieur du micro-ondes",'Nettoyer four (intérieur et extérieur)','Nettoyer plaque de cuisson','Nettoyer hotte','Vérifier bouilloire, cafetière, grille-pain','#Sol','Balayer et laver','Vérifier et désinfecter']],
+  ['Chambre(s)',['#Literie','Retirer le linge de lit','Vérifier les matelas','Changer protège-matelas si besoin','Installer linge propre','Vérifier alèses et oreillers','#Mobilier','Dépoussiérer meubles de nuit','Nettoyer lampes et interrupteurs','Ranger placards (vider si besoin)','Nettoyer poignées de placards','Vérifier propreté et ordre','#Sol','Aspirer sous les lits','Aérer la pièce','Laver le sol si nécessaire']],
+  ['Salle de bain',['#Douche / baignoire','Nettoyer receveur / baignoire','Détartrer parois et robinetterie','Nettoyer joints (si besoin)','Nettoyer siphon et évacuation','#Lavabo','Désinfecter lavabo','Nettoyer robinetterie','Nettoyer miroir et contour','#WC','Désinfecter cuvette et réservoir','Nettoyer abattant et lunette','Nettoyer brosse et socle','Réapprovisionner en papier toilette','#Réapprovisionnement','Savon (si besoin)','Papier toilette','Gel douche / shampoing','Serviettes propres','Tapis de bain propre','#Sol','Balayer','Laver et désinfecter']],
+  ['Buanderie (si présente)',CL_BUANDERIE],['Terrasse / balcon / jardin',CL_TERRASSE],
+  ['Vitres et finitions',['Nettoyer toutes les vitres','Nettoyer miroirs','Dépoussiérer plinthes',"Vérifier l'état des portes","Enlever toiles d'araignée"]],
+  ['Réapprovisionnement',['#Cuisine','Éponges neuves','Liquide vaisselle','Pastilles lave-vaisselle','Sacs poubelle','Essuie-tout / torchon','#Salle de bain',...CL_SDB_REAPPRO,'#Général','Vérifier stocks de linge',"Vérifier produits d'accueil"]],
+  ['Contrôle final',['Vérifier fonctionnement TV et Wi-Fi','Tester appareils (four, micro-ondes…)',"Vérifier absence d'objets oubliés",'Fermer toutes les fenêtres','Couper les lumières',"Installer mise en scène d'accueil",'Le logement est propre, rangé et prêt']]]}
+};
+const CL_MATCH=[['intemporel','A'],['joyful','A'],['arcade','B'],['california','B'],['chalet cosy','B'],['instant','C'],['flore','C'],['duplex','D'],['chalet 10','E'],['prairie','E'],['pre fleuri','F'],['pre des plages','F'],['mouette','G'],['blonville','G']];
+function clNorm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[’']/g,' '); }
+function clTemplateId(propertyId){
+  const p=S.properties.find(x=>x.id===propertyId)||{};
+  if(p.checklist && CL_TEMPLATES[p.checklist]) return p.checklist;
+  if(p.checklist==='none') return null;
+  const n=clNorm(p.name);
+  for(const [k,id] of CL_MATCH) if(n.includes(k)) return id;
+  return 'A';
+}
+function clItems(tid){ // [{key, label, section, sub}]
+  const out=[]; if(!tid) return out;
+  CL_TEMPLATES[tid].s.forEach(([sec,items],i)=>{ let sub=''; let j=0; items.forEach(it=>{ if(it[0]==='#'){ sub=it.slice(1); return; } out.push({key:'s'+i+'_'+(j++), label:it, section:sec, si:i, sub}); }); });
+  return out;
+}
+function clProgress(t){
+  const tid=clTemplateId(t.propertyId); if(!tid) return null;
+  const items=clItems(tid); const c=t.checks||{};
+  return {done:items.filter(x=>c[x.key]).length, total:items.length};
+}
+if(!S.clOpen) S.clOpen={};
+async function clToggle(taskId,key,el){
+  const t=S.tasks.find(x=>x.id===taskId); if(!t) return;
+  const v=!!el.checked; t.checks={...(t.checks||{}),[key]:v};
+  clRefreshCounts(taskId);
+  try{ await updateTask(taskId,{['checks.'+key]:v}); }catch(e){ el.checked=!v; t.checks[key]=!v; clRefreshCounts(taskId); }
+}
+async function clSection(taskId,si,val){
+  const t=S.tasks.find(x=>x.id===taskId); if(!t) return;
+  const patch={}; clItems(clTemplateId(t.propertyId)).filter(x=>x.si===si).forEach(x=>{ patch['checks.'+x.key]=val; });
+  t.checks={...(t.checks||{})}; Object.keys(patch).forEach(k=>t.checks[k.slice(7)]=val);
+  render(); await updateTask(taskId,patch);
+}
+function clRefreshCounts(taskId){
+  const t=S.tasks.find(x=>x.id===taskId); if(!t) return; const pr=clProgress(t); if(!pr) return;
+  const g=document.getElementById('clTotal'); if(g) g.textContent=pr.done+' / '+pr.total;
+  const b=document.getElementById('clBar'); if(b) b.style.width=(pr.total?Math.round(pr.done*100/pr.total):0)+'%';
+  const items=clItems(clTemplateId(t.propertyId)); const c=t.checks||{};
+  CL_TEMPLATES[clTemplateId(t.propertyId)].s.forEach((s,i)=>{ const its=items.filter(x=>x.si===i); const e=document.getElementById('clSec'+i); if(e) e.textContent=its.filter(x=>c[x.key]).length+'/'+its.length; });
+}
+function clToggleOpen(i,el){ S.clOpen[i]=el.open; }
+function checklistHtml(t){
+  const tid=clTemplateId(t.propertyId); if(!tid) return '';
+  const items=clItems(tid); const c=t.checks||{}; const pr=clProgress(t);
+  const secs=CL_TEMPLATES[tid].s.map(([sec],i)=>{
+    const its=items.filter(x=>x.si===i); const d=its.filter(x=>c[x.key]).length; let lastSub=null;
+    const rows=its.map(x=>{ let h=''; if(x.sub!==lastSub){ lastSub=x.sub; if(x.sub) h+='<div class="cl-sub">'+shEsc(x.sub)+'</div>'; }
+      return h+'<label class="cl-item"><input type="checkbox" '+(c[x.key]?'checked':'')+' onchange="clToggle(\''+t.id+'\',\''+x.key+'\',this)"><span>'+shEsc(x.label)+'</span></label>'; }).join('');
+    return '<details class="cl-sec" '+(S.clOpen[i]?'open':'')+' ontoggle="clToggleOpen('+i+',this)"><summary><span>'+shEsc(sec)+'</span><span class="cl-count" id="clSec'+i+'">'+d+'/'+its.length+'</span></summary>'
+      +rows+'<div class="cl-actions"><button type="button" onclick="clSection(\''+t.id+'\','+i+',true)">Tout cocher</button><button type="button" onclick="clSection(\''+t.id+'\','+i+',false)">Tout décocher</button></div></details>';
+  }).join('');
+  return '<div class="detail-label">Checklist ménage <span id="clTotal" style="float:right;font-weight:700">'+pr.done+' / '+pr.total+'</span></div>'
+    +'<div class="cl-bar"><div id="clBar" style="width:'+(pr.total?Math.round(pr.done*100/pr.total):0)+'%"></div></div>'+secs;
+}
+(function(){
+  const st=document.createElement('style');
+  st.textContent=`.cl-bar{height:8px;background:#e6efee;border-radius:99px;overflow:hidden;margin:4px 0 10px}.cl-bar div{height:100%;background:#2a9d8f;transition:width .2s}
+  .cl-sec{border:1px solid var(--line,#e2e8e7);border-radius:10px;margin-bottom:8px;background:var(--surface,#fff)}
+  .cl-sec summary{display:flex;justify-content:space-between;align-items:center;padding:11px 12px;font-weight:600;font-size:14px;cursor:pointer;list-style:none}
+  .cl-sec summary::-webkit-details-marker{display:none}.cl-sec[open] summary{border-bottom:1px solid var(--line,#e2e8e7)}
+  .cl-count{font-size:12px;background:#e6efee;color:#1f5c56;border-radius:99px;padding:2px 9px}
+  .cl-sub{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#2a7d74;padding:10px 12px 2px}
+  .cl-item{display:flex;gap:10px;align-items:flex-start;padding:8px 12px;font-size:14px;line-height:1.35;cursor:pointer}
+  .cl-item input{width:20px;height:20px;flex:0 0 20px;margin:0;accent-color:#2a9d8f}
+  .cl-item input:checked+span{color:#8a9997;text-decoration:line-through}
+  .cl-actions{display:flex;gap:8px;padding:6px 12px 10px}.cl-actions button{flex:1;font-size:12.5px;padding:7px;border-radius:8px;border:1px solid var(--line,#e2e8e7);background:transparent}`;
+  document.head.appendChild(st);
+})();
+const _clModalTaskDetail=modalTaskDetail;
+modalTaskDetail=function(id){
+  const h=_clModalTaskDetail(id); const t=S.tasks.find(x=>x.id===id); if(!t||!h) return h;
+  return h.replace('<div class="detail-label">Photos avant</div>', checklistHtml(t)+'<div class="detail-label">Photos avant</div>');
+};
+const _clUpdateTask=updateTask;
+updateTask=async function(id,patch){
+  if(patch && patch.status==='fait' && S.session && S.session.role==='provider'){
+    const t=S.tasks.find(x=>x.id===id); const pr=t&&clProgress(t);
+    if(pr && pr.done<pr.total && !confirm('La checklist n\'est pas terminée ('+pr.done+' / '+pr.total+'). Marquer quand même la tâche comme faite ?')) return;
+  }
+  return _clUpdateTask(id,patch);
+};
+const _clModalEditProperty=modalEditProperty;
+modalEditProperty=function(id){
+  const h=_clModalEditProperty(id); const p=S.properties.find(x=>x.id===id); if(!p) return h;
+  const cur=p.checklist||'';
+  const auto=(()=>{ const n=clNorm(p.name); for(const [k,i] of CL_MATCH) if(n.includes(k)) return i; return 'A'; })();
+  const opts='<option value="">Automatique ('+shEsc(CL_TEMPLATES[auto].label)+')</option>'+Object.keys(CL_TEMPLATES).map(k=>'<option value="'+k+'" '+(cur===k?'selected':'')+'>'+shEsc(CL_TEMPLATES[k].label)+'</option>').join('')+'<option value="none" '+(cur==='none'?'selected':'')+'>Pas de checklist</option>';
+  return h.replace('<button class="primary-btn" onclick="submitEditProperty(', '<div class="field"><label>Checklist ménage</label><select id="editPropCl">'+opts+'</select></div><button class="primary-btn" onclick="submitEditProperty(');
+};
+const _clSubmitEditProperty=submitEditProperty;
+submitEditProperty=async function(id){
+  const el=document.getElementById('editPropCl'); const v=el?el.value:null;
+  if(v!==null){ try{ await updateProperty(id,{checklist:v}); }catch(e){} }
+  return _clSubmitEditProperty(id);
+};
+const _clRender=render;
+render=function(){
+  const sh=document.querySelector('.sheet'); const sc=sh?sh.scrollTop:0; const wy=window.scrollY;
+  _clRender();
+  const sh2=document.querySelector('.sheet'); if(sh2&&sc) sh2.scrollTop=sc; if(wy) window.scrollTo(0,wy);
+};
 </script>
 </body>
 </html>
