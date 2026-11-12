@@ -539,7 +539,8 @@ function renderAdminProviders(){
     ${S.providers.length===0 ? `<div class="empty-state">Aucun prestataire ajouté.</div>` : ''}
     ${S.providers.map(p=>`
       <div class="list-row">
-        <div><div class="list-row-main">${p.name}</div><div class="list-row-sub">Code : ${p.code}</div></div>
+        <div><div class="list-row-main">${p.name}</div><div class="list-row-sub">Code : ${p.code} · 🔔 ${ntfyTopic(p.id)}</div></div>
+        <button class="icon-btn" title="Envoyer une notification de test" onclick="pushNotify('${p.id}','🔔 Test J&E Propreté','Les notifications fonctionnent !').then(ok=>notifToast(ok?'Test envoyé à ${p.name.replace(/'/g,"\\'")}':'Échec de l’envoi'))">🔔</button>
         <button class="icon-btn" onclick="if(confirm('Supprimer ${p.name.replace(/'/g,"\\'")} ?')) removeProvider('${p.id}')">✕</button>
       </div>
     `).join('')}
@@ -632,6 +633,7 @@ async function submitNewTask(){
   if(!propertyId || !providerId || !date){ return; }
   await addTask({propertyId, providerId, date, notes});
   closeModal();
+  notifyTask({propertyId, providerId, date, notes});
 }
 async function submitNewProvider(){
   const name = document.getElementById('newProvName').value.trim();
@@ -849,6 +851,7 @@ async function shAssign(id){
   if(!providerId){ alert('Choisissez un prestataire.'); return; }
   if(!auto && t.propertyName){ try{ await updateProperty(propertyId,{superhoteName:t.propertyName}); }catch(e){} }
   await updateTask(id,{providerId, propertyId});
+  notifyTask({...t, providerId, propertyId});
 }
 const _shRenderAdminTasks = renderAdminTasks;
 renderAdminTasks = function(){ return _shRenderAdminTasks().replace('<div class="content">','<div class="content">'+renderPendingAssign()); };
@@ -1083,7 +1086,7 @@ async function ljCreate(){
   if(to<from){ alert('La date de fin est avant la date de début.'); return; }
   const list=ljRange(from,to); if(!list.length){ alert('Aucun ménage sur cette période.'); return; }
   const details=list.map(t=>({date:t.date,time:t.time||'',name:ljTaskName(t),guests:t.guests||null,need:lgNeed(t)}));
-  try{ await db.collection('linenJobs').add({providerId:prov,from,to,items:lgSum(list),details,note,status:'a_faire',createdAt:Date.now()}); alert('Blanchisserie assignée à '+provName(prov)+' ✅'); render(); }
+  try{ await db.collection('linenJobs').add({providerId:prov,from,to,items:lgSum(list),details,note,status:'a_faire',createdAt:Date.now()}); alert('Blanchisserie assignée à '+provName(prov)+' ✅'); render(); pushNotify(prov,'🧺 Nouvelle blanchisserie','Du '+ljFmt(from)+' au '+ljFmt(to)+(note?'\n📝 '+note:'')); }
   catch(e){ alert('Enregistrement impossible : '+(e.code||e.message)); }
 }
 async function ljSetStatus(id,st){ try{ await db.collection('linenJobs').doc(id).update({status:st,doneAt:st==='fait'?Date.now():null}); }catch(e){ alert('Enregistrement impossible : '+(e.code||e.message)); } }
@@ -1095,6 +1098,53 @@ function ljProviderSection(){
 }
 const _ljRenderProvider=renderProvider;
 renderProvider=function(){ ljInit(); return _ljRenderProvider().replace('<div class="content">','<div class="content">'+ljProviderSection()); };
+
+/* ===== Notifications automatiques des prestataires (ntfy) ===== */
+const APP_URL='https://jeproprete14.github.io/menage-app/';
+function ntfyTopic(providerId){ return 'jep-'+providerId; }
+async function pushNotify(providerId, title, message){
+  if(!providerId) return false;
+  try{
+    const r=await fetch('https://ntfy.sh/',{method:'POST',body:JSON.stringify({topic:ntfyTopic(providerId),title,message,click:APP_URL,priority:4})});
+    return r.ok;
+  }catch(e){ console.warn('Notification non envoyée', e); return false; }
+}
+function notifyTask(t){
+  const addr=[propAddress(t.propertyId), propLoc(t.propertyId)].filter(Boolean).join(', ');
+  const lines=['📅 '+fmtDate(t.date)+(t.time?' · dès '+String(t.time).replace(':00','h'):'')];
+  if(addr) lines.push('📍 '+addr);
+  if(t.guests) lines.push('👥 '+t.guests+' pers.');
+  if(t.notes) lines.push('📝 '+t.notes);
+  pushNotify(t.providerId,'🧹 Nouveau ménage : '+propName(t.propertyId),lines.join('\n'))
+    .then(ok=>notifToast(ok?'🔔 '+provName(t.providerId)+' a été notifié(e)':'⚠️ Notification non envoyée'));
+}
+function notifToast(msg){
+  try{
+    const d=document.createElement('div'); d.textContent=msg;
+    d.style.cssText='position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#1f3b3a;color:#fff;padding:10px 16px;border-radius:999px;font-size:13.5px;z-index:9999;box-shadow:0 4px 14px rgba(0,0,0,.2);max-width:90%;text-align:center';
+    document.body.appendChild(d); setTimeout(()=>d.remove(),3500);
+  }catch(e){}
+}
+function notifDismissed(){ try{ return localStorage.getItem('jepNotifOk')==='1'; }catch(e){ return false; } }
+function notifDismiss(){ try{ localStorage.setItem('jepNotifOk','1'); }catch(e){} render(); }
+function notifSetupBox(){
+  if(!S.session || S.session.role!=='provider' || notifDismissed()) return '';
+  const topic=ntfyTopic(S.session.id);
+  return `<div class="card" style="border-left:4px solid #2a9d8f;cursor:default">
+    <div class="card-title">🔔 Être prévenu(e) des nouvelles tâches</div>
+    <div class="card-sub" style="margin-top:6px;line-height:1.5">
+      1. Installez l'appli gratuite <b>ntfy</b> :
+      <a href="https://apps.apple.com/app/ntfy/id1625396347" target="_blank">iPhone</a> ·
+      <a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" target="_blank">Android</a><br>
+      2. Appuyez sur le bouton ci-dessous (ou dans ntfy, touchez <b>+</b> et tapez : <b style="user-select:all">${topic}</b>)<br>
+      3. Autorisez les notifications.
+    </div>
+    <a class="primary-btn" style="display:block;text-align:center;text-decoration:none;margin-top:10px" href="ntfy://ntfy.sh/${topic}">S'abonner dans ntfy</a>
+    <button class="ghost-btn" style="width:100%;margin-top:6px" onclick="notifDismiss()">C'est fait ✓</button>
+  </div>`;
+}
+const _ntRenderProvider=renderProvider;
+renderProvider=function(){ return _ntRenderProvider().replace('<div class="content">','<div class="content">'+notifSetupBox()); };
 </script>
 </body>
 </html>
