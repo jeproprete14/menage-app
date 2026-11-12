@@ -411,7 +411,8 @@ async function safeWrite(fn){
     }
   }
 }
-async function addProvider(name, code){ await safeWrite(()=> db.collection('providers').add({name, code, active:true})); }
+async function addProvider(name, code, phone){ await safeWrite(()=> db.collection('providers').add({name, code, phone:phone||'', active:true})); }
+async function updateProvider(id, patch){ await safeWrite(()=> db.collection('providers').doc(id).update(patch)); }
 async function removeProvider(id){ await safeWrite(()=> db.collection('providers').doc(id).delete()); }
 async function addProperty(name, location, address){ await safeWrite(()=> db.collection('properties').add({name, location, address:address||''})); }
 async function updateProperty(id, patch){ await safeWrite(()=> db.collection('properties').doc(id).update(patch)); }
@@ -419,7 +420,7 @@ async function removeProperty(id){ await safeWrite(()=> db.collection('propertie
 async function addTask(t){ await safeWrite(()=> db.collection('tasks').add({status:'a_faire', photosBefore:[], photosAfter:[], notes:'', ...t})); }
 async function updateTask(id, patch){ await safeWrite(()=> db.collection('tasks').doc(id).update(patch)); }
 async function removeTask(id){ await safeWrite(()=> db.collection('tasks').doc(id).delete()); }
-async function setAdminPin(pin, whatsapp){ await safeWrite(()=> db.collection('config').doc('admin').set({pin, whatsapp})); }
+async function setAdminPin(pin, whatsapp){ await safeWrite(()=> db.collection('config').doc('admin').set({pin, whatsapp},{merge:true})); }
 
 /* ======================= RENDER HELPERS ======================= */
 function propName(id){ const p=S.properties.find(x=>x.id===id); return p?p.name:'—'; }
@@ -539,9 +540,10 @@ function renderAdminProviders(){
     ${S.providers.length===0 ? `<div class="empty-state">Aucun prestataire ajouté.</div>` : ''}
     ${S.providers.map(p=>`
       <div class="list-row">
-        <div><div class="list-row-main">${p.name}</div><div class="list-row-sub">Code : ${p.code} · 🔔 ${ntfyTopic(p.id)}</div></div>
-        <button class="icon-btn" title="Envoyer une notification de test" onclick="pushNotify('${p.id}','🔔 Test J&E Propreté','Les notifications fonctionnent !').then(ok=>notifToast(ok?'Test envoyé à ${p.name.replace(/'/g,"\\'")}':'Échec de l’envoi'))">🔔</button>
-        <button class="icon-btn" onclick="if(confirm('Supprimer ${p.name.replace(/'/g,"\\'")} ?')) removeProvider('${p.id}')">✕</button>
+        <div><div class="list-row-main">${p.name}</div><div class="list-row-sub">Code : ${p.code} · ${p.phone ? '💬 '+p.phone : '<span style="color:#b42318">Pas de n° WhatsApp</span>'}</div></div>
+        <div style="display:flex;gap:6px;">
+        <button class="icon-btn" title="Numéro WhatsApp" onclick="editProviderPhone('${p.id}')">📱</button>
+        <button class="icon-btn" onclick="if(confirm('Supprimer ${p.name.replace(/'/g,"\\'")} ?')) removeProvider('${p.id}')">✕</button></div>
       </div>
     `).join('')}
   </div>
@@ -638,8 +640,9 @@ async function submitNewTask(){
 async function submitNewProvider(){
   const name = document.getElementById('newProvName').value.trim();
   const code = document.getElementById('newProvCode').value.trim();
+  const phone = (document.getElementById('newProvPhone')||{value:''}).value.trim();
   if(!name || !code) return;
-  await addProvider(name, code);
+  await addProvider(name, code, phone);
   closeModal();
 }
 async function submitNewProperty(){
@@ -712,6 +715,7 @@ function modalNewProvider(){
       <div class="sheet-title">Nouveau prestataire</div>
       <div class="field"><label>Nom</label><input id="newProvName" type="text" placeholder="ex : Sophie"></div>
       <div class="field"><label>Code d'accès</label><input id="newProvCode" type="text" placeholder="ex : 1234"></div>
+      <div class="field"><label>N° WhatsApp (pour recevoir les tâches)</label><input id="newProvPhone" type="tel" placeholder="ex : 06 12 34 56 78"></div>
       <button class="primary-btn" onclick="submitNewProvider()">Ajouter</button>
     </div>
   </div>`;
@@ -1086,7 +1090,7 @@ async function ljCreate(){
   if(to<from){ alert('La date de fin est avant la date de début.'); return; }
   const list=ljRange(from,to); if(!list.length){ alert('Aucun ménage sur cette période.'); return; }
   const details=list.map(t=>({date:t.date,time:t.time||'',name:ljTaskName(t),guests:t.guests||null,need:lgNeed(t)}));
-  try{ await db.collection('linenJobs').add({providerId:prov,from,to,items:lgSum(list),details,note,status:'a_faire',createdAt:Date.now()}); alert('Blanchisserie assignée à '+provName(prov)+' ✅'); render(); pushNotify(prov,'🧺 Nouvelle blanchisserie','Du '+ljFmt(from)+' au '+ljFmt(to)+(note?'\n📝 '+note:'')); }
+  try{ await db.collection('linenJobs').add({providerId:prov,from,to,items:lgSum(list),details,note,status:'a_faire',createdAt:Date.now()}); alert('Blanchisserie assignée à '+provName(prov)+' ✅'); render(); waOpen(prov,'Bonjour '+provName(prov)+' 👋\nUne blanchisserie vous a été assignée :\n\n🧺 Du '+ljFmt(from)+' au '+ljFmt(to)+(note?'\n📝 '+note:'')+'\n\nDétails dans l\'appli : '+APP_URL+'\n\nJ&E Propreté'); }
   catch(e){ alert('Enregistrement impossible : '+(e.code||e.message)); }
 }
 async function ljSetStatus(id,st){ try{ await db.collection('linenJobs').doc(id).update({status:st,doneAt:st==='fait'?Date.now():null}); }catch(e){ alert('Enregistrement impossible : '+(e.code||e.message)); } }
@@ -1099,52 +1103,57 @@ function ljProviderSection(){
 const _ljRenderProvider=renderProvider;
 renderProvider=function(){ ljInit(); return _ljRenderProvider().replace('<div class="content">','<div class="content">'+ljProviderSection()); };
 
-/* ===== Notifications automatiques des prestataires (ntfy) ===== */
+/* ===== Prévenir le prestataire sur WhatsApp (gratuit, message pré-rempli) ===== */
 const APP_URL='https://jeproprete14.github.io/menage-app/';
-function ntfyTopic(providerId){ return 'jep-'+providerId; }
-async function pushNotify(providerId, title, message){
-  if(!providerId) return false;
-  try{
-    const r=await fetch('https://ntfy.sh/',{method:'POST',body:JSON.stringify({topic:ntfyTopic(providerId),title,message,click:APP_URL,priority:4})});
-    return r.ok;
-  }catch(e){ console.warn('Notification non envoyée', e); return false; }
+function waPhone(raw){
+  let d=String(raw||'').replace(/[^0-9]/g,'');
+  if(d.startsWith('00')) d=d.slice(2);
+  if(d.length===10 && d.startsWith('0')) d='33'+d.slice(1);
+  return d;
 }
-function notifyTask(t){
+function waTaskText(t){
   const addr=[propAddress(t.propertyId), propLoc(t.propertyId)].filter(Boolean).join(', ');
-  const lines=['📅 '+fmtDate(t.date)+(t.time?' · dès '+String(t.time).replace(':00','h'):'')];
-  if(addr) lines.push('📍 '+addr);
-  if(t.guests) lines.push('👥 '+t.guests+' pers.');
-  if(t.notes) lines.push('📝 '+t.notes);
-  pushNotify(t.providerId,'🧹 Nouveau ménage : '+propName(t.propertyId),lines.join('\n'))
-    .then(ok=>notifToast(ok?'🔔 '+provName(t.providerId)+' a été notifié(e)':'⚠️ Notification non envoyée'));
+  const L=['Bonjour '+provName(t.providerId)+' 👋','Un nouveau ménage vous a été assigné :','',
+    '🏠 '+propName(t.propertyId)+(addr?' – '+addr:''),
+    '📅 '+fmtDate(t.date)+(t.time?' · dès '+String(t.time).replace(':00','h'):'')];
+  if(t.guests) L.push('👥 '+t.guests+' pers.');
+  if(t.notes) L.push('📝 '+t.notes);
+  L.push('','La checklist et les détails sont dans l\'appli : '+APP_URL,'','J&E Propreté');
+  return L.join('\n');
 }
-function notifToast(msg){
-  try{
-    const d=document.createElement('div'); d.textContent=msg;
-    d.style.cssText='position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#1f3b3a;color:#fff;padding:10px 16px;border-radius:999px;font-size:13.5px;z-index:9999;box-shadow:0 4px 14px rgba(0,0,0,.2);max-width:90%;text-align:center';
-    document.body.appendChild(d); setTimeout(()=>d.remove(),3500);
-  }catch(e){}
-}
-function notifDismissed(){ try{ return localStorage.getItem('jepNotifOk')==='1'; }catch(e){ return false; } }
-function notifDismiss(){ try{ localStorage.setItem('jepNotifOk','1'); }catch(e){} render(); }
-function notifSetupBox(){
-  if(!S.session || S.session.role!=='provider' || notifDismissed()) return '';
-  const topic=ntfyTopic(S.session.id);
-  return `<div class="card" style="border-left:4px solid #2a9d8f;cursor:default">
-    <div class="card-title">🔔 Être prévenu(e) des nouvelles tâches</div>
-    <div class="card-sub" style="margin-top:6px;line-height:1.5">
-      1. Installez l'appli gratuite <b>ntfy</b> :
-      <a href="https://apps.apple.com/app/ntfy/id1625396347" target="_blank">iPhone</a> ·
-      <a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" target="_blank">Android</a><br>
-      2. Appuyez sur le bouton ci-dessous (ou dans ntfy, touchez <b>+</b> et tapez : <b style="user-select:all">${topic}</b>)<br>
-      3. Autorisez les notifications.
+function waOpen(providerId, text){ S.modal={type:'waNotify', providerId, text}; render(); }
+function notifyTask(t){ waOpen(t.providerId, waTaskText(t)); }
+function modalWa(m){
+  const prov=S.providers.find(p=>p.id===m.providerId)||{name:'le prestataire'};
+  const num=waPhone(prov.phone);
+  const link=num?'https://wa.me/'+num+'?text='+encodeURIComponent(m.text):'';
+  return `<div class="overlay" onclick="if(event.target===this) closeModal()">
+    <div class="sheet" style="position:relative;">
+      <button class="sheet-close" onclick="closeModal()">✕</button>
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">Tâche assignée ✅</div>
+      <div class="detail-text" style="white-space:pre-line;background:#f3f7f6;border-radius:10px;padding:10px 12px;font-size:13.5px">${shEsc(m.text)}</div>
+      ${num
+        ? `<a class="primary-btn" style="display:block;text-align:center;text-decoration:none;background:#25D366;margin-top:12px" href="${link}" target="_blank" rel="noopener" onclick="setTimeout(closeModal,300)">💬 Envoyer à ${shEsc(prov.name)} sur WhatsApp</a>`
+        : `<div class="error-msg">Pas de numéro WhatsApp pour ${shEsc(prov.name)}.</div><button class="primary-btn" onclick="editProviderPhone('${m.providerId}')">📱 Ajouter son numéro</button>`}
+      <button class="ghost-btn" style="width:100%;margin-top:8px;" onclick="closeModal()">Plus tard</button>
     </div>
-    <a class="primary-btn" style="display:block;text-align:center;text-decoration:none;margin-top:10px" href="ntfy://ntfy.sh/${topic}">S'abonner dans ntfy</a>
-    <button class="ghost-btn" style="width:100%;margin-top:6px" onclick="notifDismiss()">C'est fait ✓</button>
   </div>`;
 }
-const _ntRenderProvider=renderProvider;
-renderProvider=function(){ return _ntRenderProvider().replace('<div class="content">','<div class="content">'+notifSetupBox()); };
+const _waRenderModal=renderModal;
+renderModal=function(){ if(S.modal && S.modal.type==='waNotify') return modalWa(S.modal); return _waRenderModal(); };
+const _waModalTaskDetail=modalTaskDetail;
+modalTaskDetail=function(id){
+  const h=_waModalTaskDetail(id); const t=S.tasks.find(x=>x.id===id);
+  if(!h||!t||!t.providerId||!S.session||S.session.role!=='admin') return h;
+  return h.replace('<div class="detail-label">Horaires de la prestation</div>', `<button class="wa-btn" onclick="notifyTask(S.tasks.find(x=>x.id==='${t.id}'))">💬 Envoyer la tâche à ${shEsc(provName(t.providerId))} sur WhatsApp</button><div class="detail-label">Horaires de la prestation</div>`);
+};
+async function editProviderPhone(id){
+  const p=S.providers.find(x=>x.id===id); if(!p) return;
+  const v=prompt('Numéro WhatsApp de '+p.name+' (ex : 06 12 34 56 78)', p.phone||'');
+  if(v===null) return;
+  await updateProvider(id,{phone:v.trim()}); p.phone=v.trim(); render();
+}
 
 /* ===== Checklists ménage par logement ===== */
 const CL_ENTREE=['Balayer et laver le sol',"Nettoyer la porte d'entrée (intérieur / extérieur)",'Dépoussiérer meubles et décorations','Nettoyer interrupteurs et poignées',"Vérifier l'éclairage",'Vider la poubelle',"Vérifier l'absence d'objets oubliés"];
